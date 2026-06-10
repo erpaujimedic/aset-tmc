@@ -58,3 +58,5 @@ websockets==15.0.1
 yarl==1.24.2
 openpyxl
 python-multipart
+bcrypt
+google-api-python-client
