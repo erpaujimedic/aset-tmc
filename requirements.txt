@@ -60,3 +60,5 @@ openpyxl
 python-multipart
 bcrypt
 google-api-python-client
+
+docxtpl
