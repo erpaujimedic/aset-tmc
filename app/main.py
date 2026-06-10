@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 import os
@@ -21,6 +22,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Extreme Optimization: Compress JSON responses to save bandwidth and speed up load times
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 import os
 os.makedirs("uploads", exist_ok=True)

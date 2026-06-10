@@ -10,8 +10,8 @@ def get_dashboard_stats():
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
-        # Fetch all assets to calculate stats
-        assets_res = supabase.table("assets").select("*").execute()
+        # Fetch ONLY the status column for all assets to minimize memory/bandwidth usage (Extreme Optimization)
+        assets_res = supabase.table("assets").select("status").execute()
         assets = assets_res.data
         
         # Fetch branches count
