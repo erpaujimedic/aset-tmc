@@ -71,7 +71,7 @@ async def get_assets(branch: Optional[str] = None, status: Optional[str] = None)
         
         while True:
             query = supabase.table("assets").select("*")
-            if branch and branch != "All Branches":
+            if branch and branch not in ("All Branches", "ALL", "ALL Branches"):
                 query = query.eq("branch", branch)
             if status and status != "All Status":
                 query = query.eq("status", status)

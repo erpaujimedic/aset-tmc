@@ -14,7 +14,7 @@ async def get_dashboard_stats(branch: str = None):
     try:
         # Fetch ONLY the status column for all assets to minimize memory/bandwidth usage (Extreme Optimization)
         assets_query = supabase.table("assets").select("status")
-        if branch:
+        if branch and branch != "ALL":
             assets_query = assets_query.eq("branch", branch)
         assets_res = assets_query.execute()
         assets = assets_res.data
@@ -25,7 +25,7 @@ async def get_dashboard_stats(branch: str = None):
 
         # Fetch tickets count
         tickets_query = supabase.table("tickets").select("id, status")
-        if branch:
+        if branch and branch != "ALL":
             tickets_query = tickets_query.eq("branch", branch)
         tickets_res = tickets_query.execute()
         tickets = tickets_res.data
@@ -52,7 +52,7 @@ async def get_dashboard_stats(branch: str = None):
         # Fetch recent activities (movements and logs)
         # Note: movement_logs does not have branch directly. If branch is provided, we fetch logs and filter in python,
         # or we might fetch more logs initially.
-        logs_res = supabase.table("movement_logs").select("*, asset_movements(tracking_code, assets(name, branch))").order("created_at", desc=True).limit(50 if branch else 5).execute()
+        logs_res = supabase.table("movement_logs").select("*, asset_movements(tracking_code, assets(name, branch))").order("created_at", desc=True).limit(50 if (branch and branch != "ALL") else 5).execute()
         recent_activities = []
         for log in logs_res.data:
             # handle nested structure safely
