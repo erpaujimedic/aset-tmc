@@ -34,11 +34,12 @@ def verify_login(req: LoginRequest):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
         
-    response = supabase.table("users").select("*").eq("email", req.email).execute()
+    # Check by email or username
+    response = supabase.table("users").select("*").or_(f"email.eq.{req.email},username.eq.{req.email}").execute()
     users = response.data
     
     if not users:
-        raise HTTPException(status_code=401, detail="Email tidak ditemukan!")
+        raise HTTPException(status_code=401, detail="Email atau Username tidak ditemukan!")
         
     user = users[0]
     
@@ -81,3 +82,25 @@ def register(req: RegisterRequest):
 @router.post("/reset-password")
 def reset_password(req: ResetPasswordRequest):
     return {"message": f"Link reset password dikirim ke {req.email}"}
+
+class ChangePasswordRequest(BaseModel):
+    user_id: str
+    old_password: str
+    new_password: str
+
+@router.post("/change-password")
+def change_password(req: ChangePasswordRequest):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database connection error")
+        
+    response = supabase.table("users").select("*").eq("id", req.user_id).execute()
+    if not response.data:
+        raise HTTPException(status_code=404, detail="User tidak ditemukan")
+        
+    user = response.data[0]
+    if not verify_password(req.old_password, user["password_hash"]):
+        raise HTTPException(status_code=400, detail="Password lama salah!")
+        
+    hashed_password = get_password_hash(req.new_password)
+    supabase.table("users").update({"password_hash": hashed_password}).eq("id", req.user_id).execute()
+    return {"message": "Password berhasil diubah"}

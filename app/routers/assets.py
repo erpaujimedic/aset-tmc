@@ -3,6 +3,7 @@ from fastapi.responses import StreamingResponse
 from app.database import supabase
 from pydantic import BaseModel
 from typing import Optional
+from fastapi_cache.decorator import cache
 import io
 import openpyxl
 import uuid
@@ -56,8 +57,11 @@ class AssetUpdate(BaseModel):
     location_name: Optional[str] = None
     is_labeled: Optional[bool] = None
 
+from fastapi_cache import FastAPICache
+
 @router.get("")
-def get_assets(branch: Optional[str] = None, status: Optional[str] = None):
+@cache(expire=3600)
+async def get_assets(branch: Optional[str] = None, status: Optional[str] = None):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
@@ -89,17 +93,18 @@ def get_assets(branch: Optional[str] = None, status: Optional[str] = None):
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("")
-def create_asset(asset: AssetCreate):
+async def create_asset(asset: AssetCreate):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
         res = supabase.table("assets").insert(asset.dict()).execute()
+        await FastAPICache.clear()
         return {"message": "Asset created successfully", "data": res.data}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.put("/{asset_id}")
-def update_asset(asset_id: str, asset: AssetUpdate):
+async def update_asset(asset_id: str, asset: AssetUpdate):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
@@ -107,16 +112,18 @@ def update_asset(asset_id: str, asset: AssetUpdate):
         if not update_data:
             return {"message": "No data to update"}
         res = supabase.table("assets").update(update_data).eq("id", asset_id).execute()
+        await FastAPICache.clear()
         return {"message": "Asset updated successfully", "data": res.data}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete("/{asset_id}")
-def delete_asset(asset_id: str):
+async def delete_asset(asset_id: str):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
         res = supabase.table("assets").delete().eq("id", asset_id).execute()
+        await FastAPICache.clear()
         return {"message": "Asset deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -261,6 +268,7 @@ async def import_assets(file: UploadFile = File(...)):
             
         if assets_to_insert:
             res = supabase.table("assets").insert(assets_to_insert).execute()
+            await FastAPICache.clear()
             return {"message": f"Successfully imported {len(assets_to_insert)} assets", "data": res.data}
         else:
             return {"message": "No valid data to import"}

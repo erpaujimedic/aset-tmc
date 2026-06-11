@@ -212,3 +212,59 @@ def reject_dispatch(req: ApprovalRequest):
         return {"message": "Pengiriman telah ditolak"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+class PublicUpdatePayload(BaseModel):
+    asset_id: str
+    from_branch: str
+    to_branch: str
+    status: str
+    purpose: str
+    tracking_code: str
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    updater_name: Optional[str] = "Anonymous Scanner"
+
+@router.post("/public-update")
+async def public_update_asset(payload: PublicUpdatePayload):
+    from fastapi_cache import FastAPICache
+    try:
+        # Update assets table
+        update_data = {
+            "branch": payload.to_branch,
+            "status": payload.status
+        }
+        if payload.lat is not None and payload.lng is not None:
+            update_data["lat"] = payload.lat
+            update_data["lng"] = payload.lng
+            
+        supabase.table("assets").update(update_data).eq("id", payload.asset_id).execute()
+
+        # Insert movement record
+        mov_data = {
+            "tracking_code": payload.tracking_code,
+            "asset_id": payload.asset_id,
+            "movement_type": "Public Scan Update",
+            "purpose": payload.purpose,
+            "from_location": payload.from_branch,
+            "to_location": payload.to_branch,
+            "status": "Completed",
+            "sender_name": payload.updater_name
+        }
+        res_mov = supabase.table("asset_movements").insert(mov_data).execute()
+        movement_id = res_mov.data[0]['id']
+
+        # Insert log
+        log_data = {
+            "movement_id": movement_id,
+            "status_update": "Location Updated via QR Scan",
+            "description": f"Location updated to {payload.to_branch}. Updater: {payload.updater_name}",
+            "updated_by": payload.updater_name
+        }
+        supabase.table("movement_logs").insert(log_data).execute()
+
+        # Clear cache so updates show up immediately in list & dashboard
+        await FastAPICache.clear()
+
+        return {"message": "Success"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

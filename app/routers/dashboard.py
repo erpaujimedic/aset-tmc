@@ -2,16 +2,21 @@ from fastapi import APIRouter, HTTPException
 from app.database import supabase
 from collections import Counter
 from datetime import datetime, timedelta
+from fastapi_cache.decorator import cache
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 @router.get("/stats")
-def get_dashboard_stats():
+@cache(expire=3600)
+async def get_dashboard_stats(branch: str = None):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
         # Fetch ONLY the status column for all assets to minimize memory/bandwidth usage (Extreme Optimization)
-        assets_res = supabase.table("assets").select("status").execute()
+        assets_query = supabase.table("assets").select("status")
+        if branch:
+            assets_query = assets_query.eq("branch", branch)
+        assets_res = assets_query.execute()
         assets = assets_res.data
         
         # Fetch branches count
@@ -19,7 +24,10 @@ def get_dashboard_stats():
         total_branches = len(branches_res.data)
 
         # Fetch tickets count
-        tickets_res = supabase.table("tickets").select("id, status").execute()
+        tickets_query = supabase.table("tickets").select("id, status")
+        if branch:
+            tickets_query = tickets_query.eq("branch", branch)
+        tickets_res = tickets_query.execute()
         tickets = tickets_res.data
         open_tickets = len([t for t in tickets if t.get("status") == "Open" or t.get("status") == "In Progress"])
 
@@ -42,7 +50,9 @@ def get_dashboard_stats():
         asset_growth = [12, 20, 15, 8, 7, 11]
 
         # Fetch recent activities (movements and logs)
-        logs_res = supabase.table("movement_logs").select("*, asset_movements(tracking_code, assets(name))").order("created_at", desc=True).limit(5).execute()
+        # Note: movement_logs does not have branch directly. If branch is provided, we fetch logs and filter in python,
+        # or we might fetch more logs initially.
+        logs_res = supabase.table("movement_logs").select("*, asset_movements(tracking_code, assets(name, branch))").order("created_at", desc=True).limit(50 if branch else 5).execute()
         recent_activities = []
         for log in logs_res.data:
             # handle nested structure safely
@@ -50,6 +60,12 @@ def get_dashboard_stats():
             assets_info = asset_movements.get("assets") or {}
             asset_name = assets_info.get("name") if isinstance(assets_info, dict) else "Unknown"
             tracking_code = asset_movements.get("tracking_code", "Unknown")
+            
+            if branch:
+                asset_branch = assets_info.get("branch") if isinstance(assets_info, dict) else None
+                if asset_branch != branch:
+                    continue
+                    
             recent_activities.append({
                 "id": log["id"],
                 "status_update": log["status_update"],
@@ -59,6 +75,8 @@ def get_dashboard_stats():
                 "tracking_code": tracking_code,
                 "updated_by": log["updated_by"]
             })
+            if len(recent_activities) >= 5:
+                break
 
         # Calculate alerts (e.g. overdue movements)
         # Fetch active movements

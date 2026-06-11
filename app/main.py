@@ -7,12 +7,37 @@ import os
 from app.routers import auth, users, permissions, assets, deliveries, dashboard, movements, calibrations, tickets, setup
 from app.database import supabase
 
+from contextlib import asynccontextmanager
+from redis import asyncio as aioredis
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.redis import RedisBackend
+from fastapi_cache.backends.inmemory import InMemoryBackend
+
 load_dotenv()
+
+redis_url = os.getenv("REDIS_URL")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if redis_url:
+        try:
+            # We must use decode_responses=False for fastapi-cache
+            redis = aioredis.from_url(redis_url, encoding="utf8", decode_responses=False)
+            FastAPICache.init(RedisBackend(redis), prefix="eam-cache")
+            print("Upstash Redis cache successfully initialized!")
+        except Exception as e:
+            print(f"Failed to connect to Redis: {e}")
+            FastAPICache.init(InMemoryBackend(), prefix="eam-cache")
+    else:
+        print("WARNING: REDIS_URL not set. Falling back to InMemory Cache.")
+        FastAPICache.init(InMemoryBackend(), prefix="eam-cache")
+    yield
 
 app = FastAPI(
     title="TMC EAM System API",
     description="Backend API for Enterprise Asset Management System",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 app.add_middleware(
