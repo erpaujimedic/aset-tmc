@@ -40,6 +40,14 @@ def get_roles():
     res = supabase.table("roles").select("name").execute()
     # Frontend expects an array of strings
     roles = [r["name"] for r in res.data]
+    
+    if "Public Access" not in roles:
+        try:
+            supabase.table("roles").insert({"name": "Public Access"}).execute()
+            roles.append("Public Access")
+        except:
+            pass
+
     return {"data": roles}
 
 @router.post("/roles")

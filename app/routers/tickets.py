@@ -24,6 +24,7 @@ class TicketCreate(BaseModel):
     department: Optional[str] = None
     vendor_name: Optional[str] = None
     photo_url: Optional[str] = None
+    component_id: Optional[str] = None
 
 class TicketUpdate(BaseModel):
     title: Optional[str] = None
@@ -37,6 +38,7 @@ class TicketUpdate(BaseModel):
     changed_by_role: Optional[str] = None
     notes: Optional[str] = None
     action: Optional[str] = None
+    component_id: Optional[str] = None
 
 @router.get("/{ticket_id}/download-iso-form")
 def download_iso_form(ticket_id: str):
@@ -110,7 +112,7 @@ def get_tickets():
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
-        res = supabase.table("tickets").select("*").order("created_at", desc=True).execute()
+        res = supabase.table("tickets").select("*, asset_components(id, name, serial_number)").order("created_at", desc=True).execute()
         return {"data": res.data}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

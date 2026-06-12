@@ -34,6 +34,16 @@ class AssetCreate(BaseModel):
     location_name: Optional[str] = None
     is_labeled: bool = False
 
+class ComponentCreate(BaseModel):
+    name: str
+    serial_number: Optional[str] = None
+    status: str = "Bagus"
+
+class ComponentUpdate(BaseModel):
+    name: Optional[str] = None
+    serial_number: Optional[str] = None
+    status: Optional[str] = None
+
 class AssetUpdate(BaseModel):
     name: Optional[str] = None
     category: Optional[str] = None
@@ -304,7 +314,7 @@ async def export_excel(data: ExportData):
 
 @router.get("")
 @cache(expire=3600, namespace="assets")
-async def get_assets(branch: Optional[str] = None, status: Optional[str] = None):
+async def get_assets(branch: Optional[str] = None, status: Optional[str] = None, limit: Optional[int] = None):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
@@ -318,6 +328,14 @@ async def get_assets(branch: Optional[str] = None, status: Optional[str] = None)
                 query = query.eq("branch", branch)
             if status and status != "All Status":
                 query = query.eq("status", status)
+            
+            query = query.order("created_at", desc=True)
+            
+            # If limit is provided, fetch exactly that limit and break
+            if limit:
+                res = query.range(0, limit - 1).execute()
+                all_data.extend(res.data)
+                break
                 
             res = query.range(start, start + page_size - 1).execute()
             

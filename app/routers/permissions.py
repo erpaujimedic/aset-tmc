@@ -7,14 +7,15 @@ router = APIRouter(prefix="/permissions", tags=["Permissions"])
 
 DEFAULT_MODULES = {
     "Dashboard": ["View"],
-    "Asset Management": ["View", "Create", "Edit", "Delete", "Import", "Export"],
+    "Asset Management": ["View", "Create", "Edit", "Delete", "Import", "Export", "Print BA"],
     "Deliveries & Tracking": ["View", "Create", "Receive"],
     "Calibration Schedules": ["View", "Create", "Edit", "Delete"],
     "Ticketing": ["View", "Create", "Resolve"],
     "User Managements - Roles": ["View", "Create", "Edit", "Delete"],
     "User Managements - Profile Configurations": ["View", "Edit"],
     "User Managements - Users": ["View", "Create", "Edit", "Delete"],
-    "User Managements - SLA Settings": ["View", "Edit"]
+    "User Managements - SLA Settings": ["View", "Edit"],
+    "Public QR Portal": ["Update Lokasi", "Mutasi Permanen", "Pinjamkan Alat", "Terima Aset", "Lapor Rusak"]
 }
 
 class ActionItem(BaseModel):
