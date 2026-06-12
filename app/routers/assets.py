@@ -138,7 +138,7 @@ async def export_ba(payload: BAPayload):
     import tempfile
     import os
     
-    frontend_logo_path = "eam-frontend/public/logo.png"
+    frontend_logo_path = "templates/logo.png"
     if not os.path.exists(frontend_logo_path):
         frontend_logo_path = "../eam-frontend/public/logo.png"
         
@@ -166,8 +166,11 @@ async def export_ba(payload: BAPayload):
             
             draw = ImageDraw.Draw(canvas)
             try:
-                font_bold_small = ImageFont.truetype('arialbd.ttf', 16 * scale)
-                font_bold_tiny = ImageFont.truetype('arialbd.ttf', 14 * scale)
+                font_path = "templates/arialbd.ttf"
+                if not os.path.exists(font_path):
+                    font_path = "arialbd.ttf"
+                font_bold_small = ImageFont.truetype(font_path, 16 * scale)
+                font_bold_tiny = ImageFont.truetype(font_path, 14 * scale)
             except:
                 font_bold_small = ImageFont.load_default()
                 font_bold_tiny = ImageFont.load_default()
