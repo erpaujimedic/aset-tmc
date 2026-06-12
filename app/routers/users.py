@@ -70,10 +70,15 @@ def delete_role(role_name: str):
     return {"data": roles}
 
 @router.get("")
-def get_users():
+def get_users(branch: Optional[str] = None):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
-    res = supabase.table("users").select("*").execute()
+        
+    query = supabase.table("users").select("*")
+    if branch and branch not in ("All Branches", "ALL", "ALL Branches"):
+        query = query.eq("branch", branch)
+        
+    res = query.execute()
     
     # Map to frontend expected format
     formatted_users = []

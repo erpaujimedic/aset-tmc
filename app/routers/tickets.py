@@ -108,11 +108,15 @@ def download_iso_form(ticket_id: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("")
-def get_tickets():
+def get_tickets(branch: Optional[str] = None):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
-        res = supabase.table("tickets").select("*, asset_components(id, name, serial_number)").order("created_at", desc=True).execute()
+        query = supabase.table("tickets").select("*, asset_components(id, name, serial_number)").order("created_at", desc=True)
+        if branch and branch not in ("All Branches", "ALL", "ALL Branches"):
+            query = query.eq("branch", branch)
+            
+        res = query.execute()
         return {"data": res.data}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

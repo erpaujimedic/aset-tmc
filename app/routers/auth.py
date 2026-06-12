@@ -34,6 +34,38 @@ def verify_login(req: LoginRequest):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
         
+    if req.email == "dummy@eam.com" or req.email == "dummy_user":
+        # Ensure dummy branch exists
+        branch_res = supabase.table("branches").select("*").eq("name", "DUMMY_SANDBOX").execute()
+        if not branch_res.data:
+            try:
+                supabase.table("branches").insert({
+                    "name": "DUMMY_SANDBOX",
+                    "branch_code": "DUMMY",
+                    "region": "SANDBOX",
+                    "lat": -6.2,
+                    "lng": 106.8,
+                    "sort_order": 999
+                }).execute()
+            except Exception:
+                pass
+                
+        # Ensure dummy user exists
+        dummy_res = supabase.table("users").select("*").eq("email", "dummy@eam.com").execute()
+        if not dummy_res.data:
+            try:
+                hashed_pw = get_password_hash("dummy123")
+                supabase.table("users").insert({
+                    "full_name": "Sandbox Demo User",
+                    "email": "dummy@eam.com",
+                    "username": "dummy_user",
+                    "role": "Sandbox Admin",
+                    "branch": "DUMMY_SANDBOX",
+                    "password_hash": hashed_pw
+                }).execute()
+            except Exception:
+                pass
+
     # Check by email or username
     response = supabase.table("users").select("*").or_(f"email.eq.{req.email},username.eq.{req.email}").execute()
     users = response.data

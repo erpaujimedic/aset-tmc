@@ -24,12 +24,15 @@ class CalibrationUpdate(BaseModel):
     notes: Optional[str] = None
 
 @router.get("")
-def get_calibrations():
+def get_calibrations(branch: Optional[str] = None):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
-        # Also fetch the asset details
-        res = supabase.table("calibrations").select("*, assets(name, branch, status)").execute()
+        query = supabase.table("calibrations").select("*, assets!inner(name, branch, status)")
+        if branch and branch not in ("All Branches", "ALL", "ALL Branches"):
+            query = query.eq("assets.branch", branch)
+            
+        res = query.execute()
         return {"data": res.data}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

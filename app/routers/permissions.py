@@ -34,6 +34,17 @@ def get_permissions(role_name: str):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
         
+    # Grant full permissions automatically to Sandbox Admin without DB lookup
+    if role_name == "Sandbox Admin":
+        response_data = []
+        for module, actions in DEFAULT_MODULES.items():
+            module_actions = [{"name": action, "enabled": True} for action in actions]
+            response_data.append({
+                "module": module,
+                "actions": module_actions
+            })
+        return {"data": response_data}
+
     res = supabase.table("role_permissions").select("*").eq("role_name", role_name).execute()
     existing_perms = res.data
     

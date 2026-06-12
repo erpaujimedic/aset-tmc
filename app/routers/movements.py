@@ -8,9 +8,12 @@ from datetime import datetime
 router = APIRouter(prefix="/movements", tags=["Asset Movements"])
 
 @router.get("")
-def get_all_movements():
+def get_all_movements(branch: Optional[str] = None):
     """Mengambil semua transaksi pengiriman aset yang aktif/riwayat"""
-    res = supabase.table("asset_movements").select("*, assets(name)").order("created_at", desc=True).execute()
+    query = supabase.table("asset_movements").select("*, assets(name)").order("created_at", desc=True)
+    if branch and branch not in ("All Branches", "ALL", "ALL Branches"):
+        query = query.or_(f"from_location.eq.{branch},to_location.eq.{branch}")
+    res = query.execute()
     return {"data": res.data}
 
 @router.post("/dispatch")

@@ -110,3 +110,41 @@ async def get_dashboard_stats(branch: str = None):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/reset-sandbox")
+async def reset_sandbox():
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database connection error")
+    try:
+        # Get all sandbox tickets
+        tickets_res = supabase.table("tickets").select("id").eq("branch", "DUMMY_SANDBOX").execute()
+        ticket_ids = [t["id"] for t in tickets_res.data]
+        for tid in ticket_ids:
+            supabase.table("ticket_history").delete().eq("ticket_id", tid).execute()
+        supabase.table("tickets").delete().eq("branch", "DUMMY_SANDBOX").execute()
+
+        # Get all sandbox movements
+        movs_res = supabase.table("asset_movements").select("id").or_("from_location.eq.DUMMY_SANDBOX,to_location.eq.DUMMY_SANDBOX").execute()
+        mov_ids = [m["id"] for m in movs_res.data]
+        for mid in mov_ids:
+            supabase.table("movement_logs").delete().eq("movement_id", mid).execute()
+        supabase.table("asset_movements").delete().or_("from_location.eq.DUMMY_SANDBOX,to_location.eq.DUMMY_SANDBOX").execute()
+        
+        # Get all sandbox assets
+        assets_res = supabase.table("assets").select("id").eq("branch", "DUMMY_SANDBOX").execute()
+        asset_ids = [a["id"] for a in assets_res.data]
+        for aid in asset_ids:
+            supabase.table("calibrations").delete().eq("asset_id", aid).execute()
+            
+        # Finally delete assets
+        supabase.table("assets").delete().eq("branch", "DUMMY_SANDBOX").execute()
+        
+        # Clean up sandbox users except dummy@eam.com
+        supabase.table("users").delete().eq("branch", "DUMMY_SANDBOX").neq("email", "dummy@eam.com").execute()
+        
+        from fastapi_cache import FastAPICache
+        await FastAPICache.clear()
+        
+        return {"message": "Data sandbox berhasil dibersihkan!"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
