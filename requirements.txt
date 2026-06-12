@@ -121,3 +121,5 @@ google-api-python-client
 docxtpl
 redis
 fastapi-cache2[redis]
+qrcode
+Pillow
