@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from app.database import supabase
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List, Any
 from fastapi_cache.decorator import cache
 import io
 import openpyxl
@@ -58,9 +58,249 @@ class AssetUpdate(BaseModel):
     is_labeled: Optional[bool] = None
 
 from fastapi_cache import FastAPICache
+import base64
+from docxtpl import DocxTemplate, InlineImage
+from docx.shared import Mm
+import docx
+from copy import deepcopy
+import qrcode
+
+class AssetBARow(BaseModel):
+    asset_id: str
+    no_pr: str
+    branch: str
+    nama_asset: str
+    serial_number: str
+    user: str
+    department: str
+    is_labeled: bool = False
+
+class BAPayload(BaseModel):
+    tanggal: str
+    assets: List[AssetBARow]
+
+@router.post("/export-ba")
+async def export_ba(payload: BAPayload):
+    doc = docx.Document("templates/ba_barcodeassets.docx")
+    
+    target_row = None
+    target_table = None
+    
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                if '{{nama_asset}}' in cell.text:
+                    target_row = row
+                    target_table = table
+                    break
+            if target_row:
+                break
+        if target_row:
+            break
+            
+    if target_row and len(payload.assets) > 0:
+        for cell in target_row.cells:
+            for paragraph in cell.paragraphs:
+                for run in paragraph.runs:
+                    run.text = run.text.replace("}}", "_0}}")
+                    
+        prev_row_tr = target_row._tr
+        for i in range(1, len(payload.assets)):
+            new_row_tr = deepcopy(target_row._tr)
+            prev_row_tr.addnext(new_row_tr)
+            new_row = docx.table._Row(new_row_tr, target_table)
+            for cell_idx, cell in enumerate(new_row.cells):
+                for paragraph in cell.paragraphs:
+                    for run in paragraph.runs:
+                        run.text = run.text.replace("_0}}", "_" + str(i) + "}}")
+                        if cell_idx == 0 and "1" in run.text:
+                            run.text = run.text.replace("1", str(i + 1))
+            prev_row_tr = new_row_tr
+            
+    temp_buf = io.BytesIO()
+    doc.save(temp_buf)
+    temp_buf.seek(0)
+    
+    doc_tpl = DocxTemplate(temp_buf)
+    
+    unlabeled = [a.nama_asset for a in payload.assets if not a.is_labeled]
+    if unlabeled:
+        ket_barcode = f"{', '.join(unlabeled)} belum terlabeli."
+    else:
+        ket_barcode = "-"
+        
+    context = {
+        "tanggal": payload.tanggal,
+        "ket_barcode": ket_barcode
+    }
+    
+    from PIL import Image, ImageDraw, ImageFont
+    import tempfile
+    import os
+    from docx2pdf import convert
+    
+    frontend_logo_path = "eam-frontend/public/logo.png"
+    if not os.path.exists(frontend_logo_path):
+        frontend_logo_path = "../eam-frontend/public/logo.png"
+        
+    for i, asset in enumerate(payload.assets):
+        context[f"no_pr_{i}"] = asset.no_pr if asset.no_pr else "-"
+        context[f"branch_{i}"] = asset.branch if asset.branch else "-"
+        context[f"nama_asset_{i}"] = asset.nama_asset if asset.nama_asset else "-"
+        context[f"serial_number_{i}"] = asset.serial_number if asset.serial_number and asset.serial_number != "NN" else "-"
+        context[f"department_{i}"] = asset.department if asset.department else "-"
+        
+        try:
+            scale = 4
+            qr = qrcode.QRCode(version=1, box_size=10 * scale, border=1)
+            qr.add_data(f"http://localhost:5173/public-asset/{asset.asset_id}")
+            qr.make(fit=True)
+            qr_img = qr.make_image(fill_color="black", back_color="white").convert('RGB')
+            
+            qr_size = 180 * scale
+            qr_img = qr_img.resize((qr_size, qr_size))
+            
+            canvas_w = 200 * scale
+            canvas_h = 240 * scale
+            canvas = Image.new('RGB', (canvas_w, canvas_h), 'white')
+            canvas.paste(qr_img, (10 * scale, 5 * scale))
+            
+            draw = ImageDraw.Draw(canvas)
+            try:
+                font_bold_small = ImageFont.truetype('arialbd.ttf', 16 * scale)
+                font_bold_tiny = ImageFont.truetype('arialbd.ttf', 14 * scale)
+            except:
+                font_bold_small = ImageFont.load_default()
+                font_bold_tiny = ImageFont.load_default()
+            
+            if os.path.exists(frontend_logo_path):
+                logo = Image.open(frontend_logo_path).convert('RGBA')
+                lw, lh = logo.size
+                new_h = 16 * scale
+                new_w = int(lw * (new_h / lh))
+                logo = logo.resize((new_w, new_h))
+                logo_exists = True
+            else:
+                logo_exists = False
+                new_w = 0
+                
+            name_text = asset.nama_asset.upper()
+            if len(name_text) > 15:
+                name_text = name_text[:13] + ".."
+                
+            name_bbox = font_bold_tiny.getbbox(name_text)
+            name_w = name_bbox[2] - name_bbox[0]
+            
+            total_w = (new_w + (4 * scale) + name_w) if logo_exists else name_w
+            start_x = (canvas_w - total_w) / 2
+            
+            text_y1 = 195 * scale
+            if logo_exists:
+                canvas.paste(logo, (int(start_x), text_y1), logo)
+                text_x = start_x + new_w + (4 * scale)
+            else:
+                text_x = start_x
+                
+            draw.text((text_x, text_y1), name_text, fill='black', font=font_bold_tiny)
+            
+            id_bbox = font_bold_small.getbbox(asset.asset_id)
+            id_w = id_bbox[2] - id_bbox[0]
+            id_x = (canvas_w - id_w) / 2
+            text_y2 = 215 * scale
+            draw.text((id_x, text_y2), asset.asset_id, fill='black', font=font_bold_small)
+            
+            img_stream = io.BytesIO()
+            canvas.save(img_stream, format='PNG')
+            img_stream.seek(0)
+            context[f"qr_code_{i}"] = InlineImage(doc_tpl, img_stream, width=Mm(18))
+        except Exception as e:
+            print("QR Error:", e)
+            context[f"qr_code_{i}"] = ""
+            
+    doc_tpl.render(context)
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        temp_docx = os.path.join(tmpdir, "temp.docx")
+        temp_pdf = os.path.join(tmpdir, "temp.pdf")
+        doc_tpl.save(temp_docx)
+        
+        try:
+            import sys
+            import subprocess
+            import os
+            python_exe = os.path.join(os.getcwd(), ".venv", "Scripts", "python.exe")
+            if not os.path.exists(python_exe):
+                python_exe = sys.executable
+            
+            script = f"from docx2pdf import convert; convert(r'{temp_docx}', r'{temp_pdf}')"
+            result = subprocess.run([python_exe, "-c", script], capture_output=True, text=True)
+            if result.returncode != 0:
+                print("PDF Subprocess Error:", result.stderr)
+                raise Exception("Subprocess convert failed")
+            
+            with open(temp_pdf, "rb") as f:
+                pdf_data = f.read()
+            out_buf = io.BytesIO(pdf_data)
+            media_type = "application/pdf"
+            filename = "Berita_Acara_Asset.pdf"
+        except Exception as e:
+            print("PDF Convert Error:", e)
+            out_buf = io.BytesIO()
+            doc_tpl.save(out_buf)
+            out_buf.seek(0)
+            media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            filename = "Berita_Acara_Asset.docx"
+    
+    return StreamingResponse(
+        out_buf,
+        media_type=media_type,
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+class ExportData(BaseModel):
+    headers: List[str]
+    rows: List[List[Any]]
+
+@router.post("/export-excel")
+async def export_excel(data: ExportData):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Assets Export"
+    
+    ws.append(data.headers)
+    for cell in ws[1]:
+        cell.font = openpyxl.styles.Font(bold=True, color="FFFFFF")
+        cell.fill = openpyxl.styles.PatternFill(start_color="286086", end_color="286086", fill_type="solid")
+    
+    for row in data.rows:
+        ws.append(row)
+        
+    for col in ws.columns:
+        max_length = 0
+        column = col[0].column_letter
+        for cell in col:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        ws.column_dimensions[column].width = max_length + 2
+        
+    ws.freeze_panes = "A2"
+    
+    out = io.BytesIO()
+    wb.save(out)
+    out.seek(0)
+    
+    return StreamingResponse(
+        out,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=assets_inventory.xlsx"}
+    )
+
 
 @router.get("")
-@cache(expire=3600)
+@cache(expire=3600, namespace="assets")
 async def get_assets(branch: Optional[str] = None, status: Optional[str] = None):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
@@ -98,7 +338,7 @@ async def create_asset(asset: AssetCreate):
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
         res = supabase.table("assets").insert(asset.dict()).execute()
-        await FastAPICache.clear()
+        await FastAPICache.clear(namespace="assets")
         return {"message": "Asset created successfully", "data": res.data}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -112,7 +352,7 @@ async def update_asset(asset_id: str, asset: AssetUpdate):
         if not update_data:
             return {"message": "No data to update"}
         res = supabase.table("assets").update(update_data).eq("id", asset_id).execute()
-        await FastAPICache.clear()
+        await FastAPICache.clear(namespace="assets")
         return {"message": "Asset updated successfully", "data": res.data}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -123,7 +363,7 @@ async def delete_asset(asset_id: str):
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
         res = supabase.table("assets").delete().eq("id", asset_id).execute()
-        await FastAPICache.clear()
+        await FastAPICache.clear(namespace="assets")
         return {"message": "Asset deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -244,6 +484,14 @@ async def import_assets(file: UploadFile = File(...)):
             else:
                 asset_id = f"AST-{current_year}-{category_code}-{str(uuid.uuid4()).split('-')[0].upper()}"
             
+            qr = qrcode.QRCode(version=1, box_size=10, border=5)
+            qr.add_data(asset_id)
+            qr.make(fit=True)
+            img = qr.make_image(fill_color="black", back_color="white")
+            buffer = io.BytesIO()
+            img.save(buffer, format="PNG")
+            qr_base64 = base64.b64encode(buffer.getvalue()).decode()
+            
             asset_data = {
                 "id": asset_id,
                 "name": name,
@@ -261,6 +509,7 @@ async def import_assets(file: UploadFile = File(...)):
                 "placement_location": placement_location,
                 "rack_number": rack_number,
                 "calibration_doc_url": calibration_doc_url,
+                "qr_code": qr_base64,
                 "is_labeled": False,
                 "status": "Active"
             }
@@ -268,7 +517,7 @@ async def import_assets(file: UploadFile = File(...)):
             
         if assets_to_insert:
             res = supabase.table("assets").insert(assets_to_insert).execute()
-            await FastAPICache.clear()
+            await FastAPICache.clear(namespace="assets")
             return {"message": f"Successfully imported {len(assets_to_insert)} assets", "data": res.data}
         else:
             return {"message": "No valid data to import"}
