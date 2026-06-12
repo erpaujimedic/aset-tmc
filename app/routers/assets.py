@@ -81,7 +81,8 @@ class BAPayload(BaseModel):
 
 @router.post("/export-ba")
 async def export_ba(payload: BAPayload):
-    doc = docx.Document("templates/ba_barcodeassets.docx")
+    try:
+        doc = docx.Document("templates/ba_barcodeassets.docx")
     
     target_row = None
     target_table = None
@@ -250,11 +251,15 @@ async def export_ba(payload: BAPayload):
             media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             filename = "Berita_Acara_Asset.docx"
     
-    return StreamingResponse(
-        out_buf,
-        media_type=media_type,
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
-    )
+        return StreamingResponse(
+            out_buf,
+            media_type=media_type,
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except Exception as e:
+        import traceback
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(content=traceback.format_exc(), status_code=500)
 
 class ExportData(BaseModel):
     headers: List[str]
