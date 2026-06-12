@@ -168,7 +168,11 @@ export default function Calibrations() {
         await api.put(`/calibrations/${form.id}`, form);
         Swal.fire({ icon: 'success', title: 'Success', text: 'Calibration updated.', timer: 1500 });
       } else {
-        await api.post('/calibrations', form);
+        const isAllBranch = Array.isArray(user?.branch) ? user.branch.includes('ALL') : user?.branch === 'ALL';
+        const isAdminSystem = ['Master Admin', 'Admin System'].includes(user?.role);
+        const apiBranchParam = (isAdminSystem || isAllBranch) ? '' : (Array.isArray(user?.branch) ? user.branch.join(',') : user?.branch);
+        const postUrl = apiBranchParam ? `/calibrations?branch=${encodeURIComponent(apiBranchParam)}` : '/calibrations';
+        await api.post(postUrl, form);
         Swal.fire({ icon: 'success', title: 'Success', text: 'Calibration schedule added.', timer: 1500 });
       }
       setIsModalOpen(false);
