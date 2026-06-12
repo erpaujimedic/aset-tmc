@@ -81,8 +81,7 @@ class BAPayload(BaseModel):
 
 @router.post("/export-ba")
 async def export_ba(payload: BAPayload):
-    try:
-        doc = docx.Document("templates/ba_barcodeassets.docx")
+    doc = docx.Document("templates/ba_barcodeassets.docx")
     
     target_row = None
     target_table = None
@@ -257,10 +256,6 @@ async def export_ba(payload: BAPayload):
             media_type=media_type,
             headers={"Content-Disposition": f"attachment; filename={filename}", "Access-Control-Expose-Headers": "Content-Disposition"}
         )
-    except Exception as e:
-        import traceback
-        from fastapi.responses import PlainTextResponse
-        return PlainTextResponse(content=traceback.format_exc(), status_code=500)
 
 class ExportData(BaseModel):
     headers: List[str]
