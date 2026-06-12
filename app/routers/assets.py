@@ -137,7 +137,6 @@ async def export_ba(payload: BAPayload):
     from PIL import Image, ImageDraw, ImageFont
     import tempfile
     import os
-    from docx2pdf import convert
     
     frontend_logo_path = "eam-frontend/public/logo.png"
     if not os.path.exists(frontend_logo_path):
