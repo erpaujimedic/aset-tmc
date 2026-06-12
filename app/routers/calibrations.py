@@ -38,15 +38,27 @@ def get_calibrations(branch: Optional[str] = None):
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("")
-def create_calibration(cal: CalibrationCreate):
+def create_calibration(cal: CalibrationCreate, branch: Optional[str] = None):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
-        # Pydantic date objects must be serialized to ISO strings
+        # Verify asset belongs to requested branch (if branch provided)
+        if branch:
+            asset_res = supabase.table("assets").select("branch").eq("id", cal.asset_id).execute()
+            if not asset_res.data:
+                raise HTTPException(status_code=404, detail="Asset not found")
+            asset_branch = asset_res.data[0].get("branch")
+            if asset_branch != branch:
+                raise HTTPException(status_code=403, detail="Asset does not belong to your branch")
+        # Serialize dates to ISO strings
         data = cal.dict()
-        data['last_calibration_date'] = data['last_calibration_date'].isoformat()
-        data['next_calibration_date'] = data['next_calibration_date'].isoformat()
+        data["last_calibration_date"] = data["last_calibration_date"].isoformat()
+        data["next_calibration_date"] = data["next_calibration_date"].isoformat()
         
+        # Remove None values to avoid schema issues where None is passed but column doesn't exist
+        data = {k: v for k, v in data.items() if v is not None}
+        
+        # Insert calibration record
         res = supabase.table("calibrations").insert(data).execute()
         return {"message": "Calibration created successfully", "data": res.data}
     except Exception as e:
