@@ -152,7 +152,7 @@ async def export_ba(payload: BAPayload):
         try:
             scale = 4
             qr = qrcode.QRCode(version=1, box_size=10 * scale, border=1)
-            qr.add_data(f"http://localhost:5173/public-asset/{asset.asset_id}")
+            qr.add_data(f"https://siklusasset.my.id/public-asset/{asset.asset_id}")
             qr.make(fit=True)
             qr_img = qr.make_image(fill_color="black", back_color="white").convert('RGB')
             
