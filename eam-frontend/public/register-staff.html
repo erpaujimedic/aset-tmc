@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Onsite Personnel Registration | TMC</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+
+    <style>
+        :root { 
+            --primary: #30528A; 
+            --tirta-red: #EC363A;
+            --tirta-gold: #A78759;
+            --bg-color: #f4f6f9; 
+            --border-light: #e2e8f0; 
+            --input-bg: #ffffff; 
+            --text-dark: #0f172a; 
+            --text-muted: #64748b; 
+        }
+        html { font-size: 14px; }
+        body { background-color: var(--bg-color); font-family: 'Poppins', sans-serif; color: var(--text-dark); padding-bottom: 40px; -webkit-font-smoothing: antialiased; }
+        
+        .container-slim { max-width: 650px; margin: 0 auto; padding: 25px; border-radius: 20px; }
+        
+        .app-header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid var(--border-light); }
+        .logo-placeholder { width: 64px; height: 64px; margin: 0 auto 15px; display: flex; align-items: center; justify-content: center; background: #fff; border-radius: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border: 1px solid var(--border-light); overflow: hidden;}
+        .logo-placeholder img { width: 100%; height: 100%; object-fit: contain; padding: 5px; }
+        .app-title { font-weight: 800; font-size: 1.3rem; color: var(--primary); margin: 0 0 5px 0; letter-spacing: -0.5px; }
+        .app-subtitle { font-size: 0.8rem; color: var(--text-muted); margin: 0; font-weight: 600; }
+        
+        .section-title { font-size: 0.8rem; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 1px; margin: 30px 0 15px 0; padding-bottom: 8px; border-bottom: 2px solid var(--border-light); display: flex; align-items: center;}
+        .section-title i { color: var(--tirta-gold); margin-right: 8px; font-size: 1rem; }
+        
+        .form-group { margin-bottom: 12px; }
+        label { font-size: 0.75rem; font-weight: 700; color: var(--text-dark); margin-bottom: 6px; }
+        .req { color: var(--tirta-red); }
+        
+        .form-control, .form-select { border-radius: 10px; padding: 12px 14px; border: 1px solid var(--border-light); background-color: var(--input-bg); font-size: 0.85rem; font-weight: 600; color: var(--text-dark); transition: all 0.2s; box-shadow: none !important; }
+        .form-control:focus, .form-select:focus { background-color: #fff; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(48,82,138, 0.1) !important; outline: none;}
+        .form-control::placeholder { color: #94a3b8; font-weight: 500; }
+        
+        .select2-container .select2-selection--single { height: 44px !important; border-radius: 10px !important; border: 1px solid var(--border-light) !important; background-color: var(--input-bg) !important; }
+        .select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 44px !important; font-size: 0.85rem; font-weight: 600; padding-left: 14px !important; color: var(--text-dark) !important;}
+        .select2-container--default .select2-selection--single .select2-selection__arrow { height: 42px !important; }
+        
+        .upload-item { display: flex; align-items: center; padding: 14px 16px; background: var(--input-bg); border: 1px solid var(--border-light); border-radius: 12px; margin-bottom: 12px; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.02);}
+        .upload-item:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 6px 12px rgba(48,82,138,0.08);}
+        .upload-item:active { transform: scale(0.98); background: #f1f5f9; }
+        .upload-item.success { border-color: #10b981; background: #ecfdf5; }
+        
+        .upload-icon-box { width: 48px; height: 48px; border-radius: 10px; background: #f8fafc; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-right: 14px; flex-shrink: 0; border: 1px solid #e2e8f0; overflow: hidden; position: relative;}
+        .upload-icon-box img { width: 100%; height: 100%; object-fit: cover; }
+        .upload-info { flex-grow: 1; overflow: hidden; }
+        .upload-title { font-size: 0.85rem; font-weight: 700; color: var(--text-dark); margin-bottom: 2px; white-space: nowrap; text-overflow: ellipsis; }
+        .upload-desc { font-size: 0.7rem; font-weight: 500; color: var(--text-muted); margin: 0; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+        .upload-status { font-size: 1.2rem; color: #cbd5e1; transition: 0.3s; }
+        .upload-item.success .upload-status { color: #10b981; }
+        
+        .btn-submit { background: linear-gradient(135deg, var(--primary) 0%, #1e3a68 100%); color: #fff; width: 100%; padding: 16px; border-radius: 12px; font-weight: 700; font-size: 0.95rem; border: none; margin-top: 25px; transition: 0.2s; box-shadow: 0 6px 15px rgba(48,82,138,0.25); letter-spacing: 0.5px;}
+        .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(48,82,138,0.35); }
+        .btn-submit:active { transform: scale(0.98); }
+        
+        .row.g-2 { margin-left: -6px; margin-right: -6px; } 
+        .row.g-2 > [class*="col-"] { padding-left: 6px; padding-right: 6px; }
+
+        .studio-canvas { background: #0f172a; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; height: 450px; }
+        .studio-footer { background: #ffffff; padding: 20px; border-top: 1px solid #eee; }
+        .rotate-btn { width: 40px; height: 40px; border-radius: 10px; border: 1px solid #e2e8f0; background: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #475569; transition: 0.2s;}
+        .rotate-btn:hover { border-color: var(--primary); color: var(--primary); background: #f8fafc;}
+        .example-panel { background: #f0f4f8; border: 1px solid #d1d9e6; border-radius: 12px; padding: 10px; display: flex; align-items: center; gap: 12px; }
+        .example-img-box { width: 60px; height: 80px; border-radius: 6px; border: 2px solid #10b981; overflow: hidden; position: relative; flex-shrink: 0; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .example-img-box img { width: 100%; height: 100%; object-fit: cover; filter: brightness(1.05); }
+        .example-badge { position: absolute; bottom: 2px; right: 2px; background: #10b981; color: white; width: 16px; height: 16px; border-radius: 50%; font-size: 10px; display: flex; align-items: center; justify-content: center; }
+
+        .tmc-spinner { width: 3.5rem; height: 3.5rem; border-radius: 50%; border: 4px solid rgba(48, 82, 138, 0.1); border-top-color: var(--primary); border-right-color: var(--tirta-red); animation: spin1 1s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite; position: relative; margin: 0 auto; }
+        .tmc-spinner::after { content: ''; position: absolute; inset: 3px; border-radius: 50%; border: 3px solid transparent; border-top-color: var(--tirta-gold); border-left-color: var(--tirta-gold); animation: spin2 0.7s linear infinite reverse; }
+        
+        @keyframes spin1 { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes spin2 { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .swal2-popup { border-radius: 20px !important; padding: 2rem !important; }
+        .swal2-title { font-family: 'Poppins', sans-serif !important; font-weight: 800 !important; color: var(--primary) !important;}
+        
+        #aiScanner { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 99999; display: none; flex-direction: column; align-items: center; justify-content: center; }
+        .ai-pulse { width: 80px; height: 80px; background: url('https://cdn-icons-png.flaticon.com/512/3135/3135692.png') no-repeat center; background-size: contain; animation: pulse 1.5s infinite; margin-bottom: 25px;}
+        @keyframes pulse { 0% { transform: scale(0.9); opacity: 0.7;} 50% { transform: scale(1.1); opacity: 1;} 100% { transform: scale(0.9); opacity: 0.7;} }
+    </style>
+</head>
+<body>
+
+<div id="aiScanner">
+    <div class="ai-pulse"></div>
+    <h4 class="fw-bolder" style="color: var(--primary); letter-spacing: -0.5px;">AI Scanning Image...</h4>
+    <p class="text-muted fw-bold">Detecting facial features for Auto-Align</p>
+</div>
+
+<div class="container-slim bg-white shadow-sm mt-3">
+    
+    <div class="app-header fade-in">
+        <div class="logo-placeholder">
+            <img src="/logo.png" alt="TMC Logo">
+        </div>
+        <h1 class="app-title">Onsite Personnel Registration</h1>
+        <p class="app-subtitle">Official Portal for Medical & Operational Staff</p>
+    </div>
+
+    <form id="formManpowerEntry">
+        
+        <h6 class="section-title"><i class="fa-solid fa-address-card"></i> 1. Personal Identity</h6>
+        <div class="row g-2">
+            <div class="col-12 form-group">
+                <label>Full Name (As on ID Card) <span class="req">*</span></label>
+                <input type="text" id="regNama" class="form-control text-uppercase" placeholder="E.g., JOHN DOE" autocomplete="off" required>
+            </div>
+            
+            <div class="col-12 form-group">
+                <label>National ID Number (NIK) <span class="req">*</span></label>
+                <input type="text" inputmode="numeric" id="regNik" class="form-control font-monospace text-primary" placeholder="16 Digits Number" maxlength="16" oninput="this.value = this.value.replace(/[^0-9]/g, '');" required>
+            </div>
+            
+            <div class="col-7 form-group">
+                <label>Place of Birth <span class="req">*</span></label>
+                <input type="text" id="regTmptLahir" class="form-control" placeholder="City of Birth" required>
+            </div>
+            
+            <div class="col-5 form-group">
+                <label>Date of Birth <span class="req">*</span></label>
+                <input type="text" id="regTglLahir" class="form-control bg-white" placeholder="dd/mm/yyyy" readonly required>
+            </div>
+            
+            <div class="col-12 form-group">
+                <label>Gender <span class="req">*</span></label>
+                <select id="regGender" class="form-select" required>
+                    <option value="L">Male</option>
+                    <option value="P">Female</option>
+                </select>
+            </div>
+            
+            <div class="col-6 form-group mt-2">
+                <label>Province <span class="req">*</span></label>
+                <select id="regProvinsi" class="form-select select2-wilayah" data-placeholder="Select Province" required></select>
+            </div>
+            
+            <div class="col-6 form-group mt-2">
+                <label>City / Regency <span class="req">*</span></label>
+                <select id="regKota" class="form-select select2-wilayah" disabled data-placeholder="Select City" required></select>
+            </div>
+            
+            <div class="col-12 form-group">
+                <label>Full Address <span class="text-muted fw-normal text-lowercase">(Optional)</span></label>
+                <input type="text" id="regAlamat" class="form-control" placeholder="Street Name, House No., etc.">
+            </div>
+            
+            <div class="col-6 form-group mt-2">
+                <label>WhatsApp No. <span class="req">*</span></label>
+                <input type="text" inputmode="numeric" id="regWa" class="form-control" placeholder="0812xxxx" oninput="this.value = this.value.replace(/[^0-9]/g, '');" required>
+            </div>
+            
+            <div class="col-6 form-group mt-2">
+                <label>Active Email <span class="req">*</span></label>
+                <input type="email" inputmode="email" id="regEmail" class="form-control" placeholder="mail@domain.com" required>
+            </div>
+        </div>
+
+        <h6 class="section-title mt-4"><i class="fa-solid fa-credit-card"></i> 2. Financial & Emergency</h6>
+        <div class="row g-2">
+            <div class="col-12 form-group">
+                <label>Bank Name <span class="req">*</span></label>
+                <select id="regBankNama" class="form-select" onchange="toggleBankLainnya()" required>
+                    <option value="">-- Select Bank --</option>
+                    <option value="BCA">BCA</option>
+                    <option value="Mandiri">Mandiri</option>
+                    <option value="BNI">BNI</option>
+                    <option value="BRI">BRI</option>
+                    <option value="BSI">BSI</option>
+                    <option value="CIMB Niaga">CIMB Niaga</option>
+                    <option value="BJB">BJB</option>
+                    <option value="Lainnya">Other (Manual Input)</option>
+                </select>
+                <input type="text" id="regBankLainnya" class="form-control mt-2" style="display:none;" placeholder="Type bank name...">
+            </div>
+            
+            <div class="col-12 form-group">
+                <label>Account Number <span class="req">*</span></label>
+                <input type="text" inputmode="numeric" id="regBankNo" class="form-control font-monospace" placeholder="Type account number" oninput="this.value = this.value.replace(/[^0-9]/g, '');" required>
+            </div>
+            
+            <div class="col-12 form-group">
+                <label>Account Holder Name <span class="req">*</span></label>
+                <input type="text" id="regBankPemilik" class="form-control text-uppercase" placeholder="Account Holder Name" required>
+            </div>
+            
+            <div class="col-12 mt-3">
+                <div class="p-2 px-3 rounded-2" style="background: rgba(236, 54, 58, 0.05); border-left: 4px solid var(--tirta-red);">
+                    <div style="font-size: 0.7rem; color: var(--tirta-red); font-weight: 800; letter-spacing: 0.5px;">EMERGENCY CONTACT</div>
+                </div>
+            </div>
+            
+            <div class="col-12 form-group mt-2">
+                <input type="text" id="regEmNama" class="form-control" placeholder="Family / Relative Name (Required)" required>
+            </div>
+            
+            <div class="col-6 form-group">
+                <select id="regEmHubungan" class="form-select" required>
+                    <option value="">Relationship?</option>
+                    <option value="Pasangan">Spouse</option>
+                    <option value="Orang Tua">Parent</option>
+                    <option value="Saudara">Sibling</option>
+                    <option value="Lainnya">Other</option>
+                </select>
+            </div>
+            
+            <div class="col-6 form-group">
+                <input type="text" inputmode="numeric" id="regEmHp" class="form-control" placeholder="Emergency Phone No." oninput="this.value = this.value.replace(/[^0-9]/g, '');" required>
+            </div>
+        </div>
+
+        <h6 class="section-title mt-4"><i class="fa-solid fa-user-doctor"></i> 3. Placement & Legality</h6>
+        <div class="row g-2">
+            <div class="col-6 form-group">
+                <label>Status <span class="req">*</span></label>
+                <select id="regStatusMitra" class="form-select fw-bold" style="color: var(--primary);" required>
+                    <option value="">-- Status --</option>
+                    <option value="Gercep">Freelance (Gercep)</option>
+                    <option value="Sakti">Employee (Sakti)</option>
+                </select>
+            </div>
+            
+            <div class="col-6 form-group">
+                <label>Position <span class="req">*</span></label>
+                <select id="regPosisi" class="form-select fw-bold" style="color: var(--primary);" onchange="toggleMedicalFields()" required>
+                    <option value="">-- Position --</option>
+                    <option value="Admin / PIC">Admin / PIC</option>
+                    <option value="Dokter Umum">Dokter</option>
+                    <option value="Perawat">Perawat</option>
+                    <option value="Analis Lab">ATLM</option>
+                    <option value="Radiografer">Radiographer</option>
+                    <option value="Lainnya">Other</option>
+                </select>
+            </div>
+            
+            <div class="col-12 form-group">
+                <label>Branch Placement <span class="req">*</span></label>
+                <select id="regCabang" class="form-select" required>
+                    <option value="">-- Select Branch --</option>
+                    <option value="TMC MEDAN">TMC MEDAN</option>
+                    <option value="TMC PALEMBANG">TMC PALEMBANG</option>
+                    <option value="TMC PEKANBARU">TMC PEKANBARU</option>
+                    <option value="TMC CIKANDE">TMC CIKANDE</option>
+                    <option value="TMC BSD">TMC BSD</option>
+                    <option value="TMC BANDUNG">TMC BANDUNG</option>
+                    <option value="TMC BOGOR">TMC BOGOR</option>
+                    <option value="TMC CIBINONG">TMC CIBINONG</option>
+                    <option value="TMC TAMBUN">TMC TAMBUN</option>
+                    <option value="TMC KARAWANG">TMC KARAWANG</option>
+                    <option value="TMC BALI">TMC BALI</option>
+                    <option value="TMC MATARAM">TMC MATARAM</option>
+                    <option value="TMC MALUK">TMC MALUK</option>
+                    <option value="TMC SURABAYA">TMC SURABAYA</option>
+                    <option value="TMC YOGYAKARTA">TMC YOGYAKARTA</option>
+                    <option value="TMC SEMARANG">TMC SEMARANG</option>
+                    <option value="TMC BELLAGIO">TMC BELLAGIO</option>
+                    <option value="TMC MUARA TEWEH">TMC MUARA TEWEH</option>
+                    <option value="TMC DERAWAN">TMC DERAWAN</option>
+                    <option value="TMC BERAU">TMC BERAU</option>
+                    <option value="TMC SANGATTA">TMC SANGATTA</option>
+                    <option value="TMC BANJARMASIN">TMC BANJARMASIN</option>
+                    <option value="TMC TANJUNG TABALONG">TMC TANJUNG TABALONG</option>
+                    <option value="TMC ANGSANA">TMC ANGSANA</option>
+                    <option value="TMC MELAK">TMC MELAK</option>
+                    <option value="TMC BALIKPAPAN">TMC BALIKPAPAN</option>
+                    <option value="TMC SAMARINDA">TMC SAMARINDA</option>
+                    <option value="TMC BATU SOPANG">TMC BATU SOPANG</option>
+                    <option value="TMC MANADO">TMC MANADO</option>
+                    <option value="TMC LUWUK">TMC LUWUK</option>
+                    <option value="TMC MOROWALI">TMC MOROWALI</option>
+                    <option value="TMC MAKASSAR">TMC MAKASSAR</option>
+                    <option value="TMC TERNATE">TMC TERNATE</option>
+                    <option value="TMC SORONG">TMC SORONG</option>
+                </select>
+            </div>
+            
+            <div class="col-6 form-group mt-2">
+                <label>Education <span class="req">*</span></label>
+                <select id="regPendidikan" class="form-select" required>
+                    <option value="">-- Level --</option>
+                    <option value="SMA/SMK">High School (SMA/SMK)</option>
+                    <option value="D3">Diploma (D3)</option>
+                    <option value="D4">Diploma (D4)</option>
+                    <option value="S1">Bachelor (S1)</option>
+                    <option value="Profesi">Profession</option>
+                </select>
+            </div>
+            
+            <div class="col-6 form-group mt-2">
+                <label>Major <span class="req">*</span></label>
+                <input type="text" id="regJurusan" class="form-control text-uppercase" placeholder="E.g., NURSING" required>
+            </div>
+
+            <div class="col-12 mt-2" id="medicalFieldsWrapper" style="display:none;">
+                <div class="p-3 border rounded-3" style="background: rgba(236, 54, 58, 0.05); border-color: rgba(236, 54, 58, 0.2) !important;">
+                    <span class="d-block fw-bolder text-danger mb-3" style="font-size: 0.7rem; letter-spacing: 0.5px;">REQUIRED FOR MEDICAL STAFF</span>
+                    <div class="row g-2">
+                        <div class="col-7">
+                            <label>STR No. <span class="req">*</span></label>
+                            <input type="text" inputmode="numeric" id="regStr" class="form-control font-monospace border-danger" placeholder="STR Number" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+                        </div>
+                        <div class="col-5">
+                            <label>Valid Until <span class="req">*</span></label>
+                            <input type="text" id="regStrDate" class="form-control bg-white border-danger" placeholder="dd/mm/yyyy" readonly>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h6 class="section-title mt-4"><i class="fa-solid fa-folder-open"></i> 4. Documents <span class="text-muted fw-normal text-lowercase ms-2">(Max 5MB/File)</span></h6>
+        
+        <div class="upload-item" id="itemFoto" onclick="document.getElementById('fileFoto').click()">
+            <div class="upload-icon-box" id="boxIconFoto">
+                <i class="fa-solid fa-user-check fs-4 text-primary" id="iconFotoAsli"></i>
+                <img id="previewFoto" src="" style="display:none;">
+            </div>
+            <div class="upload-info">
+                <div class="upload-title">Formal Photo <span class="req">*</span></div>
+                <div class="upload-desc" id="lblFoto">
+                    <i class="fa-solid fa-wand-magic-sparkles text-primary me-1"></i> AI Face Scanner Enabled
+                </div>
+            </div>
+            <i class="fa-solid fa-circle-check upload-status" id="checkFoto"></i>
+            <input type="file" id="fileFoto" class="d-none" accept="image/*" onchange="handlePhotoAISelect(this)">
+        </div>
+        
+        <div class="upload-item" id="itemKtp" onclick="document.getElementById('fileKtp').click()">
+            <div class="upload-icon-box text-secondary"><i class="fa-regular fa-id-card fs-5"></i></div>
+            <div class="upload-info">
+                <div class="upload-title">Original ID (KTP) <span class="req">*</span></div>
+                <div class="upload-desc" id="lblKtp">Format PDF / Image</div>
+            </div>
+            <i class="fa-solid fa-circle-check upload-status"></i>
+            <input type="file" id="fileKtp" class="d-none" accept=".pdf, image/*" onchange="handleSimpleUpload(this, 'lblKtp', 'itemKtp')">
+        </div>
+        
+        <div class="upload-item" id="itemCv" onclick="document.getElementById('fileCv').click()">
+            <div class="upload-icon-box text-danger"><i class="fa-solid fa-file-pdf fs-5"></i></div>
+            <div class="upload-info">
+                <div class="upload-title">Curriculum Vitae <span class="req">*</span></div>
+                <div class="upload-desc" id="lblCv">Format PDF only</div>
+            </div>
+            <i class="fa-solid fa-circle-check upload-status"></i>
+            <input type="file" id="fileCv" class="d-none" accept=".pdf" onchange="handleSimpleUpload(this, 'lblCv', 'itemCv')">
+        </div>
+        
+        <div class="upload-item" id="itemIjazah" onclick="document.getElementById('fileIjazah').click()">
+            <div class="upload-icon-box" style="color: var(--tirta-gold);"><i class="fa-solid fa-certificate fs-5"></i></div>
+            <div class="upload-info">
+                <div class="upload-title">Latest Education <span class="req">*</span></div>
+                <div class="upload-desc" id="lblIjazah">According to education level</div>
+            </div>
+            <i class="fa-solid fa-circle-check upload-status"></i>
+            <input type="file" id="fileIjazah" class="d-none" accept=".pdf, image/*" onchange="handleSimpleUpload(this, 'lblIjazah', 'itemIjazah')">
+        </div>
+        
+        <div class="upload-item" id="itemStr" style="display:none;" onclick="document.getElementById('fileStr').click()">
+            <div class="upload-icon-box text-success"><i class="fa-solid fa-file-medical fs-5"></i></div>
+            <div class="upload-info">
+                <div class="upload-title">Active STR Scan <span class="req">*</span></div>
+                <div class="upload-desc text-success" id="lblStr">Format PDF / Image</div>
+            </div>
+            <i class="fa-solid fa-circle-check upload-status"></i>
+            <input type="file" id="fileStr" class="d-none" accept=".pdf, image/*" onchange="handleSimpleUpload(this, 'lblStr', 'itemStr')">
+        </div>
+
+        <button type="button" id="btnSubmitForm" class="btn-submit" onclick="submitManpowerForm()">
+            <i class="fa-solid fa-paper-plane me-2"></i> SUBMIT REGISTRATION
+        </button>
+    </form>
+</div>
+
+<div class="modal fade" id="userCropModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg overflow-hidden" style="border-radius: 20px;">
+            <div class="modal-header bg-light py-3 px-4 border-bottom">
+                <div>
+                    <h6 class="modal-title fw-bolder m-0" style="color: var(--primary);">
+                        <i class="fa-solid fa-camera-retro me-2"></i> ID Photo Studio
+                    </h6>
+                    <small class="text-muted fw-bold" style="font-size: 0.7rem;">Adjust your photo for the Official E-ID Card</small>
+                </div>
+            </div>
+            <div class="modal-body p-0 position-relative">
+                <div class="bg-warning text-dark py-2 text-center fw-bold w-100 position-absolute top-0 start-0 z-3 shadow-sm" style="font-size: 0.75rem;">
+                    <i class="fa-solid fa-lightbulb me-1"></i> This photo will be printed on your ID Card!
+                </div>
+                <div class="studio-canvas pt-5">
+                    <img id="imageToCrop" src="" style="max-width: 100%; display: block;">
+                </div>
+            </div>
+            <div class="studio-footer">
+                <div class="d-flex justify-content-between align-items-stretch mb-3 gap-3">
+                    <div class="example-panel flex-grow-1">
+                        <div class="example-img-box">
+                            <img src="https://i.pinimg.com/736x/8b/16/7a/8b167af653c2399dd93b952a48740620.jpg" alt="Correct Example">
+                            <div class="example-badge"><i class="fa-solid fa-check"></i></div>
+                        </div>
+                        <div class="text-start">
+                            <div style="font-size: 0.65rem; font-weight: 800; color: var(--primary); letter-spacing: 0.5px;">CORRECT POSE:</div>
+                            <div class="small text-muted fw-bold" style="font-size: 0.6rem;">• Face centered<br>• Shoulders visible<br>• Plain background</div>
+                        </div>
+                    </div>
+                    <div class="d-flex flex-column gap-2">
+                        <button class="rotate-btn shadow-sm" onclick="if(userCropper) userCropper.rotate(-90)" title="Rotate Left"><i class="fa-solid fa-rotate-left"></i></button>
+                        <button class="rotate-btn shadow-sm" onclick="if(userCropper) userCropper.rotate(90)" title="Rotate Right"><i class="fa-solid fa-rotate-right"></i></button>
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-light fw-bold rounded-pill border flex-grow-1 py-2 text-muted" onclick="cancelCrop()">Cancel</button>
+                    <button type="button" class="btn fw-bold rounded-pill text-white flex-grow-1 py-2 shadow-sm" style="background: var(--primary);" onclick="applyCrop()"><i class="fa-solid fa-check me-2"></i> Save Photo</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
+
+<script>
+// API CONSTANTS
+const API_PROVINCES = 'https://www.emsifa.com/api-wilayah-indonesia/api/provinces.json';
+const API_REGENCIES = 'https://www.emsifa.com/api-wilayah-indonesia/api/regencies/';
+
+// GLOBAL VARIABLES
+let userCropper = null;
+let croppedPhotoBase64 = null;
+let isAiReady = false;
+let detectedFaceBox = null; // Menyimpan data wajah
+
+// INITIALIZATION
+$(document).ready(function() {
+    flatpickr("#regTglLahir", { dateFormat: "d/m/Y", disableMobile: "true" });
+    flatpickr("#regStrDate", { dateFormat: "d/m/Y", disableMobile: "true" });
+    $('.select2-wilayah').select2({ width: '100%' });
+
+    // LOAD FACE-API MODELS
+    Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/')
+    ]).then(() => { 
+        isAiReady = true; 
+        console.log("✅ AI Face Scanner Ready!"); 
+    }).catch(err => {
+        console.warn("⚠️ Failed to load AI, auto-crop feature disabled.", err);
+    });
+
+    // LOAD PROVINSI
+    fetch(API_PROVINCES)
+        .then(res => res.json())
+        .then(prov => {
+            let opts = '<option value=""></option>';
+            prov.forEach(p => opts += `<option value="${p.id}">${p.name}</option>`);
+            $('#regProvinsi').html(opts);
+        }).catch(err => console.error(err));
+
+    $('#regProvinsi').on('change', function() {
+        const provId = $(this).val();
+        if (!provId) {
+            $('#regKota').html('<option value=""></option>').prop('disabled', true);
+            return;
+        }
+        $('#regKota').prop('disabled', false).html('<option value="">Loading City...</option>');
+        fetch(API_REGENCIES + provId + '.json')
+            .then(res => res.json())
+            .then(reg => {
+                let opts = '<option value=""></option>';
+                reg.forEach(c => opts += `<option value="${c.name}">${c.name}</option>`);
+                $('#regKota').html(opts);
+            }).catch(err => console.error(err));
+    });
+});
+
+function toggleBankLainnya() {
+    if($('#regBankNama').val() === 'Lainnya') { $('#regBankLainnya').slideDown(); } 
+    else { $('#regBankLainnya').slideUp().val(''); }
+}
+
+function toggleMedicalFields() {
+    const isMed = ['Dokter Umum', 'Perawat', 'Analis Lab', 'Radiografer'].includes($('#regPosisi').val());
+    if(isMed) { $('#medicalFieldsWrapper, #itemStr').slideDown(); } 
+    else {
+        $('#medicalFieldsWrapper, #itemStr').slideUp();
+        $('#regStr, #regStrDate, #fileStr').val('');
+        $('#lblStr').text('Format PDF / Image'); 
+        $('#itemStr').removeClass('success');
+    }
+}
+
+function handleSimpleUpload(input, labelId, itemId) {
+    const file = input.files[0];
+    if (!file) return;
+    if (file.size > 5242880) { 
+        Swal.fire({icon: 'warning', title: 'File Too Large', text: 'Max 5MB per document.'});
+        input.value = ""; return;
+    }
+    $(`#${labelId}`).text(file.name.length > 25 ? file.name.substring(0,20) + "..." : file.name);
+    $(`#${itemId}`).addClass('success');
+}
+
+// =========================================================================
+// 🚀 THE NEW AI FACE SCANNER ENGINE
+// =========================================================================
+async function handlePhotoAISelect(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    if (file.size > 5242880) { 
+        Swal.fire({icon: 'warning', title: 'File Too Large', text: 'Max 5MB for photo.'});
+        input.value = ""; return;
+    }
+
+    $('#aiScanner').css('display', 'flex');
+
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        const imgObj = new Image();
+        imgObj.src = e.target.result;
+        
+        imgObj.onload = async function() {
+            // Kalau AI gagal dimuat, langsung buka modal crop manual
+            if (!isAiReady) {
+                $('#aiScanner').hide();
+                openStudioModal(e.target.result, null);
+                return;
+            }
+
+            try {
+                // Scan wajah dengan akurasi yang sudah di-tuning
+                const detections = await faceapi.detectAllFaces(imgObj, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.4 }));
+                $('#aiScanner').hide();
+
+                if (detections.length === 0) {
+                    Swal.fire({ icon: 'error', title: 'No Face Detected!', text: 'Ensure the photo is formal, clear, and well-lit.', confirmButtonColor: '#EC363A' });
+                    input.value = ""; return;
+                }
+                if (detections.length > 1) {
+                    Swal.fire({ icon: 'error', title: 'Multiple Faces Detected!', text: 'Group photos are not allowed. Please upload a single-person photo.', confirmButtonColor: '#EC363A' });
+                    input.value = ""; return;
+                }
+
+                detectedFaceBox = detections[0].box;
+                openStudioModal(e.target.result, detectedFaceBox);
+
+            } catch (error) {
+                console.error("AI Analysis Failed", error);
+                $('#aiScanner').hide();
+                openStudioModal(e.target.result, null); 
+            }
+        };
+    };
+    reader.readAsDataURL(file);
+}
+
+function openStudioModal(imgSrc, faceBox) {
+    const img = document.getElementById('imageToCrop');
+    img.src = imgSrc;
+    
+    const modal = new bootstrap.Modal(document.getElementById('userCropModal'));
+    modal.show();
+    
+    document.getElementById('userCropModal').addEventListener('shown.bs.modal', function () {
+        if (userCropper) userCropper.destroy();
+        
+        userCropper = new Cropper(img, {
+            aspectRatio: 3 / 4, // Paksa rasio Pasfoto (3x4)
+            viewMode: 1,
+            dragMode: 'move',
+            autoCropArea: 0.8,
+            ready: function() {
+                if (faceBox) {
+                    // 🔥 SMART PASFOTO ALGORITHM 🔥
+                    // Bikin kotak seleksi yang ngepas kepala sampai pundak
+                    let idealWidth = faceBox.width * 2.5; // Frame 2.5x lebih lebar dari wajah biar pundak masuk
+                    let idealHeight = idealWidth * (4/3); // Tinggi menyesuaikan rasio 3:4
+                    let idealX = faceBox.x - (idealWidth - faceBox.width) / 2; // Rata tengah
+                    let idealY = faceBox.y - (faceBox.height * 0.7); // Jarak ideal di atas kepala
+
+                    userCropper.setData({ x: idealX, y: idealY, width: idealWidth, height: idealHeight });
+                }
+            }
+        });
+    }, { once: true });
+}
+
+function applyCrop() {
+    if (!userCropper) return;
+    
+    const canvas = userCropper.getCroppedCanvas({ width: 600, height: 800, fillColor: '#ffffff' });
+    var base64Data = canvas.toDataURL('image/jpeg', 0.8); // Kompres 80% biar ringan pas dikirim
+
+    if (detectedFaceBox) {
+        const cropData = userCropper.getData();
+        const faceToFrameRatio = detectedFaceBox.width / cropData.width;
+
+        // Validasi: Wajah kekecilan (kejauhan) atau kegedean (kedekatan) di dalam frame
+        if (faceToFrameRatio < 0.20) {
+            Swal.fire({
+                title: 'Photo Too Far',
+                html: '<div class="small text-muted mb-3">Your face appears too small. Are you sure you want to use this?</div><img src="' + base64Data + '" style="width:130px; border-radius:8px; border:2px solid #EC363A;">',
+                showCancelButton: true, confirmButtonText: 'Keep It', cancelButtonText: 'Recrop', confirmButtonColor: '#30528A'
+            }).then((r) => { if (r.isConfirmed) executeSaveCrop(base64Data); });
+            return;
+        } 
+        else if (faceToFrameRatio > 0.60) {
+            Swal.fire({
+                title: 'Photo Too Close',
+                html: '<div class="small text-muted mb-3">Your face fills the screen (shoulders not visible). Are you sure?</div><img src="' + base64Data + '" style="width:130px; border-radius:8px; border:2px solid #EC363A;">',
+                showCancelButton: true, confirmButtonText: 'Keep It', cancelButtonText: 'Recrop', confirmButtonColor: '#30528A'
+            }).then((r) => { if (r.isConfirmed) executeSaveCrop(base64Data); });
+            return;
+        }
+    }
+    
+    // Kalau aman, langsung simpan
+    executeSaveCrop(base64Data);
+}
+
+function executeSaveCrop(base64Data) {
+    croppedPhotoBase64 = base64Data;
+    $('#lblFoto').text('Photo processed and ready!');
+    $('#itemFoto').addClass('success');
+    $('#iconFotoAsli').hide();
+    $('#previewFoto').attr('src', croppedPhotoBase64).show();
+    
+    bootstrap.Modal.getInstance(document.getElementById('userCropModal')).hide();
+    if (userCropper) { userCropper.destroy(); userCropper = null; }
+}
+
+function cancelCrop() {
+    document.getElementById('fileFoto').value = "";
+    $('#lblFoto').html('<i class="fa-solid fa-wand-magic-sparkles text-primary me-1"></i> AI Face Scanner Enabled');
+    $('#itemFoto').removeClass('success');
+    $('#previewFoto').hide().attr('src', '');
+    $('#iconFotoAsli').show();
+    
+    croppedPhotoBase64 = null;
+    detectedFaceBox = null;
+    bootstrap.Modal.getInstance(document.getElementById('userCropModal')).hide();
+}
+
+function getBase64(file) {
+    return new Promise((resolve, reject) => {
+        if (!file) { resolve(null); return; }
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve({ name: file.name, mimeType: file.type, base64: reader.result.split(',')[1] });
+        reader.onerror = error => reject(error);
+    });
+}
+
+// =========================================================================
+// SUBMIT FORM KESELURUHAN
+// =========================================================================
+async function submitManpowerForm() {
+    const rawNik = $('#regNik').val();
+    if(rawNik.length !== 16) return Swal.fire({icon: 'warning', title: 'Invalid NIK', text: 'NIK must be exactly 16 digits.'});
+
+    let finalBankName = $('#regBankNama').val();
+    if(finalBankName === 'Lainnya') {
+        finalBankName = $('#regBankLainnya').val();
+        if(!finalBankName) return Swal.fire({icon: 'warning', title: 'Bank Name Empty', text: 'Please type your bank name.'});
+    }
+
+    const payload = {
+        nama: $('#regNama').val(), nik: "'" + rawNik, tmptLahir: $('#regTmptLahir').val(), tglLahir: $('#regTglLahir').val(),
+        gender: $('#regGender').val(), alamat: $('#regAlamat').val(), wa: "'" + $('#regWa').val(), email: $('#regEmail').val(),
+        provinsi: $('#regProvinsi option:selected').text(), kota: $('#regKota').val(), bankNama: finalBankName, bankNo: "'" + $('#regBankNo').val(),
+        bankPemilik: $('#regBankPemilik').val(), pendidikan: $('#regPendidikan').val(), jurusan: $('#regJurusan').val(), emNama: $('#regEmNama').val(),
+        emHub: $('#regEmHubungan').val(), emHp: "'" + $('#regEmHp').val(), statusMitra: $('#regStatusMitra').val(), posisi: $('#regPosisi').val(),
+        cabang: $('#regCabang').val(), str: "'" + $('#regStr').val(), strDate: $('#regStrDate').val()
+    };
+
+    if(!payload.nama || !payload.tmptLahir || !payload.tglLahir || $('#regWa').val() === "" || !payload.email || !payload.kota || !payload.pendidikan || !payload.jurusan || $('#regBankNo').val() === "" || !payload.bankPemilik || !payload.statusMitra || !payload.posisi || !payload.cabang || !payload.emNama || $('#regEmHp').val() === "") {
+        return Swal.fire({icon: 'error', title: 'Incomplete Data', text: 'All fields with a red asterisk (*) are required.'});
+    }
+
+    const fileKtp = document.getElementById('fileKtp').files[0];
+    const fileCv = document.getElementById('fileCv').files[0];
+    const fileIjazah = document.getElementById('fileIjazah').files[0];
+    const fileStr = document.getElementById('fileStr').files[0];
+
+    const isMed = ['Dokter Umum', 'Perawat', 'Analis Lab', 'Radiografer'].includes(payload.posisi);
+    if(isMed && !fileStr) return Swal.fire({icon: 'error', title: 'Missing Medical Documents', text: 'STR/SIP scan is REQUIRED for Medical Staff!'});
+    
+    if(!croppedPhotoBase64 || !fileKtp || !fileCv || !fileIjazah) {
+        return Swal.fire({icon: 'error', title: 'Missing Documents', text: 'Photo, ID Card, CV, and Certificate MUST be uploaded!'});
+    }
+
+    Swal.fire({ 
+        title: 'Processing Registration', 
+        html: `<div class="tmc-spinner mx-auto mb-4 mt-2"></div><div class="fw-bold" style="color: #64748b;">Encrypting & uploading documents...</div>`, 
+        allowOutsideClick: false, 
+        showConfirmButton: false
+    });
+    
+    $('#btnSubmitForm').prop('disabled', true);
+
+    try {
+        payload.fileFoto = { name: "Cropped_Photo.jpg", mimeType: "image/jpeg", base64: croppedPhotoBase64.split(',')[1] };
+        payload.fileKtp = await getBase64(fileKtp); 
+        payload.fileCv = await getBase64(fileCv);
+        payload.fileIjazah = await getBase64(fileIjazah); 
+        payload.fileStr = isMed ? await getBase64(fileStr) : null;
+
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const API_BASE_URL = isLocal ? "http://127.0.0.1:5002" : "https://most-engine-backend.onrender.com";
+
+        let response = await fetch(API_BASE_URL + "/api/manpower/register", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                payload: payload
+            })
+        });
+        
+        let res = await response.json();
+        
+        $('#btnSubmitForm').prop('disabled', false);
+
+        if(res.success) { 
+            // 🔥 NANGKEP WARNING DARI AI PYTHON (KTP MISMATCH) 🔥
+            let warningBox = res.warning ? `<div class="mt-3 p-2 bg-warning bg-opacity-25 border border-warning rounded-3 text-dark fw-bold" style="font-size:0.75rem;"><i class="fa-solid fa-robot text-danger me-1"></i> ${res.warning}</div>` : '';
+
+            Swal.fire({ 
+                icon: res.warning ? 'warning' : 'success', 
+                title: 'Registration Successful!', 
+                html: `Your data has been received with ID:<br><b class="fs-3 text-primary mt-2 d-block" style="letter-spacing: 1px;">${res.newId}</b><br><small class="text-muted fw-bold">AI processing time: ${res.waktu_proses} seconds ⚡</small>${warningBox}`, 
+                confirmButtonColor: '#30528A', 
+                allowOutsideClick: false 
+            }).then(() => window.location.reload());
+        } else { 
+            Swal.fire({ icon: 'error', title: 'Failed', text: res.message }); 
+        }
+
+    } catch (e) {
+        $('#btnSubmitForm').prop('disabled', false); 
+        Swal.fire({ icon: 'error', title: 'Connection Lost', text: e.message });
+    }
+}
+</script>
+</body>
+</html>

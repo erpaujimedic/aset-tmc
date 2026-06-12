@@ -1,0 +1,45 @@
+{
+  "name": "eam-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.107.0",
+    "axios": "^1.17.0",
+    "echarts": "^6.1.0",
+    "echarts-for-react": "^3.0.6",
+    "flatpickr": "^4.6.13",
+    "html2pdf.js": "^0.14.0",
+    "leaflet": "^1.9.4",
+    "qrcode.react": "^4.2.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "react-flatpickr": "^4.0.11",
+    "react-leaflet": "^5.0.0",
+    "react-router-dom": "^7.16.0",
+    "react-select": "^5.10.2",
+    "sweetalert2": "^11.26.25",
+    "swr": "^2.4.1",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "autoprefixer": "^10.5.0",
+    "eslint": "^10.3.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.6.0",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^3.4.19",
+    "vite": "^8.0.12"
+  }
+}
