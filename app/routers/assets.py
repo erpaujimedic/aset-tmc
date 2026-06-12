@@ -251,10 +251,11 @@ async def export_ba(payload: BAPayload):
             media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             filename = "Berita_Acara_Asset.docx"
     
-        return StreamingResponse(
-            out_buf,
+        from fastapi import Response
+        return Response(
+            content=out_buf.getvalue(),
             media_type=media_type,
-            headers={"Content-Disposition": f"attachment; filename={filename}"}
+            headers={"Content-Disposition": f"attachment; filename={filename}", "Access-Control-Expose-Headers": "Content-Disposition"}
         )
     except Exception as e:
         import traceback
