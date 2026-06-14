@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import Swal from 'sweetalert2';
 import api from '../services/api';
@@ -9,9 +9,15 @@ import BaseModal from '../components/ui/BaseModal';
 import Flatpickr from "react-flatpickr";
 import "flatpickr/dist/themes/light.css";
 
+import FullCalendar from '@fullcalendar/react';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import interactionPlugin from '@fullcalendar/interaction';
+
 export default function Calibrations() {
   const { t } = useI18nStore();
   const { user, hasPermission } = useAuthStore();
+  const navigate = useNavigate();
 
   const canCreate = hasPermission('Calibration Schedules', 'Create');
   const canEdit = hasPermission('Calibration Schedules', 'Edit');
@@ -22,6 +28,7 @@ export default function Calibrations() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [viewMode, setViewMode] = useState('list'); // 'list' or 'calendar'
   
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRegion, setFilterRegion] = useState('All Regions');
@@ -31,6 +38,7 @@ export default function Calibrations() {
   const [regionSearch, setRegionSearch] = useState('');
   const [branchSearch, setBranchSearch] = useState('');
   const [branches, setBranches] = useState([]);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
@@ -107,8 +115,18 @@ export default function Calibrations() {
     const formData = new FormData();
     formData.append('file', file);
     
+    // Pass metadata for Google Drive
+    formData.append('module', 'kalibrasi');
+    formData.append('asset_code', form.asset_id || '');
+    
+    const selectedAsset = assets.find(a => a.id === form.asset_id);
+    if (selectedAsset) {
+        formData.append('asset_name', selectedAsset.name || '');
+        formData.append('branch', selectedAsset.branch || '');
+    }
+
     Swal.fire({
-      title: 'Uploading...',
+      title: 'Uploading to Google Drive...',
       allowOutsideClick: false,
       didOpen: () => {
         Swal.showLoading();
@@ -119,8 +137,9 @@ export default function Calibrations() {
       const res = await api.post('/tickets/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      const baseUrl = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api$/, '') : 'http://127.0.0.1:8000';
-      const fullUrl = `${baseUrl}${res.data.url}`;
+      
+      const returnedUrl = res.data.url;
+      const fullUrl = returnedUrl.startsWith('http') ? returnedUrl : `${api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api$/, '') : 'http://127.0.0.1:8000'}${returnedUrl}`;
       
       setForm(prev => ({ ...prev, [fieldName]: fullUrl }));
       Swal.close();
@@ -285,157 +304,246 @@ export default function Calibrations() {
       )}
 
       {/* FILTER BAR */}
-      <div className="flex flex-col xl:flex-row justify-between items-center w-full gap-3 mb-6 shrink-0 z-20">
-        <div className="flex items-center flex-1 w-full xl:w-auto bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm relative min-w-0">
-           <div className="flex flex-col md:flex-row items-center w-full justify-between gap-2">
-              <div className="flex items-center flex-wrap justify-center gap-y-2 shrink-0">
-                <svg className="hidden md:block w-4 h-4 text-[#286086] ml-2 mr-1 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
-                
-                {openDropdown && (
-                  <div className="fixed inset-0 z-40" onClick={() => setOpenDropdown(null)}></div>
-                )}
-                
-                {/* Custom Region Dropdown */}
-                <div className="relative h-8 flex items-center shrink-0">
-                  <button 
-                    onClick={() => setOpenDropdown(openDropdown === 'region' ? null : 'region')}
-                    className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold px-2 outline-none cursor-pointer flex items-center gap-1.5 transition-colors relative z-50"
-                  >
-                    <span className="truncate max-w-[100px]">{filterRegion === 'All Regions' ? t('allRegions') || 'All Regions' : filterRegion}</span>
-                    <svg className={`w-3 h-3 transition-transform ${openDropdown === 'region' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                  </button>
-                  {openDropdown === 'region' && (
-                    <div className="absolute top-full left-0 mt-3 w-44 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.2s_ease-out] flex flex-col">
-                      <div className="p-2 border-b border-slate-100 bg-slate-50/80 shrink-0">
-                        <input 
-                          type="text" 
-                          placeholder="Search Region..." 
-                          value={regionSearch}
-                          onChange={e => setRegionSearch(e.target.value)}
-                          className="w-full text-xs p-1.5 border border-slate-200 rounded-lg outline-none focus:border-[#286086]/50 focus:ring-2 focus:ring-[#286086]/10"
-                        />
-                      </div>
-                      <div className="max-h-56 overflow-y-auto custom-scrollbar py-1">
-                        <div 
-                          onClick={() => { setFilterRegion('All Regions'); setFilterBranch('All Branches'); setOpenDropdown(null); setRegionSearch(''); }}
-                          className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterRegion === 'All Regions' ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
-                        >
-                          {t('allRegions') || 'All Regions'}
-                        </div>
-                        {regions.filter(r => r.toLowerCase().includes(regionSearch.toLowerCase())).map(r => (
-                          <div 
-                            key={r}
-                            onClick={() => { setFilterRegion(r); setFilterBranch('All Branches'); setOpenDropdown(null); setRegionSearch(''); }}
-                            className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors truncate ${filterRegion === r ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
-                            title={r}
-                          >
-                            {r}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="hidden md:block w-px h-4 bg-slate-200 shrink-0 mx-1"></div>
-
-                {/* Custom Branch Dropdown */}
-                <div className="relative h-8 flex items-center shrink-0">
-                  <button 
-                    onClick={() => setOpenDropdown(openDropdown === 'branch' ? null : 'branch')}
-                    className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold px-2 outline-none cursor-pointer flex items-center gap-1.5 transition-colors relative z-50"
-                  >
-                    <span className="truncate max-w-[150px]">{filterBranch === 'All Branches' ? t('allBranches') || 'All Branches' : filterBranch}</span>
-                    <svg className={`w-3 h-3 transition-transform ${openDropdown === 'branch' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                  </button>
-                  {openDropdown === 'branch' && (
-                    <div className="absolute top-full left-0 mt-3 w-56 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.2s_ease-out] flex flex-col">
-                      <div className="p-2 border-b border-slate-100 bg-slate-50/80 shrink-0">
-                        <input 
-                          type="text" 
-                          placeholder="Search Branch..." 
-                          value={branchSearch}
-                          onChange={e => setBranchSearch(e.target.value)}
-                          className="w-full text-xs p-1.5 border border-slate-200 rounded-lg outline-none focus:border-[#286086]/50 focus:ring-2 focus:ring-[#286086]/10"
-                        />
-                      </div>
-                      <div className="max-h-56 overflow-y-auto custom-scrollbar py-1">
-                        <div 
-                          onClick={() => { setFilterBranch('All Branches'); setOpenDropdown(null); setBranchSearch(''); }}
-                          className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterBranch === 'All Branches' ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
-                        >
-                          {t('allBranches') || 'All Branches'}
-                        </div>
-                        {availableBranches.filter(b => (b.name || b.branch_code).toLowerCase().includes(branchSearch.toLowerCase())).map(b => (
-                          <div 
-                            key={b.id}
-                            onClick={() => { setFilterBranch(b.name || b.branch_code); setOpenDropdown(null); setBranchSearch(''); }}
-                            className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors truncate ${filterBranch === (b.name || b.branch_code) ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
-                            title={b.name || b.branch_code}
-                          >
-                            {b.name || b.branch_code}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="hidden md:block w-px h-4 bg-slate-200 shrink-0 mx-1"></div>
-                
-                {/* Status Dropdown */}
-                <div className="relative h-8 flex items-center shrink-0">
-                  <button 
-                    onClick={() => setOpenDropdown(openDropdown === 'status' ? null : 'status')}
-                    className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold px-2 outline-none cursor-pointer flex items-center gap-1.5 transition-colors relative z-50"
-                  >
-                    <span className="truncate max-w-[100px]">{filterStatus === 'All' || filterStatus === 'All Status' ? t('allStatus') || 'All Status' : filterStatus}</span>
-                    <svg className={`w-3 h-3 transition-transform ${openDropdown === 'status' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                  </button>
-                  {openDropdown === 'status' && (
-                    <div className="absolute top-full left-0 mt-3 w-40 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.2s_ease-out]">
-                      <div className="py-1">
-                        <div onClick={() => { setFilterStatus('All'); setOpenDropdown(null); }} className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterStatus === 'All' ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}>{t('allStatus') || 'All Status'}</div>
-                        {['Valid', 'Expired', 'In Progress'].map(st => (
-                          <div key={st} onClick={() => { setFilterStatus(st); setOpenDropdown(null); }} className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterStatus === st ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}>{st}</div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Search */}
-              <div className="relative w-full sm:w-64 shrink-0 pr-1">
-                <svg className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                <input 
-                  type="text" 
-                  placeholder="Search calibration..." 
-                  value={searchTerm} 
-                  onChange={e => setSearchTerm(e.target.value)} 
-                  className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#286086]/20 focus:bg-white transition-all" 
-                />
-              </div>
-           </div>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0 w-full xl:w-auto overflow-x-auto justify-center pb-2 xl:pb-0">
-          <button 
-            onClick={() => fetchData()} 
-            title={t('refreshData') || 'Refresh Data'}
-            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all shrink-0"
-          >
-            <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-          </button>
-          {canCreate && (
-            <button onClick={openAddModal} className="bg-[#286086] hover:bg-[#1a4666] text-white px-4 h-10 rounded-xl font-bold text-xs shadow-lg shadow-blue-900/20 transition-all flex items-center gap-1.5">
-              <span className="text-sm leading-none">+</span> Add Schedule
+      <div className="flex flex-col gap-4 mb-6 shrink-0 z-20">
+        
+        {/* 1st Row: Main Actions & Search */}
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center w-full gap-3 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm relative z-50">
+          <div className="flex items-center gap-2 w-full xl:w-auto overflow-x-auto custom-scrollbar pb-1 xl:pb-0 shrink-0">
+            <button 
+              onClick={() => fetchData()} 
+              title={t('refreshData') || 'Refresh Data'}
+              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all shrink-0"
+            >
+              <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
             </button>
-          )}
+            
+            <button 
+              onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-sm shrink-0 border ${isFiltersOpen ? 'bg-[#286086] text-white border-[#286086]' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+              title="Toggle Filters"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+            </button>
+
+            {/* View Toggle */}
+            <div className="flex bg-slate-100 p-1 rounded-xl shadow-inner ml-2">
+              <button onClick={() => setViewMode('list')} className={`px-4 py-1.5 shrink-0 rounded-lg font-bold text-xs transition-colors flex items-center gap-1 ${viewMode === 'list' ? 'bg-white text-[#286086] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+                List
+              </button>
+              <button onClick={() => setViewMode('calendar')} className={`px-4 py-1.5 shrink-0 rounded-lg font-bold text-xs transition-colors flex items-center gap-1 ${viewMode === 'calendar' ? 'bg-white text-[#286086] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                Calendar
+              </button>
+            </div>
+
+            {/* KPI Pills */}
+            <div className="hidden sm:flex items-center gap-2 px-3 border-l border-slate-200/60 h-8 ml-2 shrink-0">
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2 py-1 rounded-md shadow-sm whitespace-nowrap">
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">{t('total') || 'Total'}</span>
+                <span className="text-[10px] font-extrabold text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-100">{filteredCals.length}</span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-100 px-2 py-1 rounded-md shadow-sm whitespace-nowrap">
+                <span className="text-[9px] font-black text-rose-600 uppercase tracking-wider">Expired</span>
+                <span className="text-[10px] font-extrabold text-rose-700 bg-white px-1.5 py-0.5 rounded border border-rose-50">{alerts.expired.length}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full xl:w-auto shrink-0 justify-between xl:justify-end">
+            <div className="relative flex-1 xl:w-64 min-w-[150px] shrink-0 bg-slate-50 p-1 rounded-xl border border-slate-100 shadow-inner flex items-center h-10">
+              <svg className="w-4 h-4 absolute left-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              <input 
+                type="text" 
+                placeholder="Search calibration..." 
+                value={searchTerm} 
+                onChange={e => setSearchTerm(e.target.value)} 
+                className="w-full pl-9 pr-3 py-1 bg-transparent border-none outline-none text-xs font-bold text-slate-700 h-full"
+              />
+            </div>
+            
+            {canCreate && (
+              <button 
+                onClick={openAddModal} 
+                className="bg-[#286086] hover:bg-[#1a4666] text-white px-4 h-10 rounded-xl font-bold text-[11px] shadow-lg shadow-blue-900/20 transition-all flex items-center justify-center gap-2 shrink-0 whitespace-nowrap"
+              >
+                <span className="text-sm leading-none">+</span> Add Schedule
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* 2nd Row: Expandable Filters */}
+        {isFiltersOpen ? (
+          <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center w-full gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm relative z-20 animate-[fadeIn_0.2s_ease-out]">
+            <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
+              
+              {openDropdown && (
+                <div className="fixed inset-0 z-40" onClick={() => setOpenDropdown(null)}></div>
+              )}
+              
+              {/* Region Dropdown */}
+              <div className="relative h-9 bg-slate-50 border border-slate-100 rounded-xl px-3 flex items-center shrink-0">
+                <button 
+                  onClick={() => setOpenDropdown(openDropdown === 'region' ? null : 'region')}
+                  className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold outline-none cursor-pointer flex items-center gap-1.5 transition-colors relative z-50"
+                >
+                  <span className="truncate max-w-[120px]">{filterRegion === 'All Regions' ? t('allRegions') || 'All Regions' : filterRegion}</span>
+                  <svg className={`w-3 h-3 transition-transform ${openDropdown === 'region' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                {openDropdown === 'region' && (
+                  <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.1s_ease-out] flex flex-col">
+                    <div className="p-2 border-b border-slate-100 bg-slate-50/80 shrink-0">
+                      <input 
+                        type="text" 
+                        placeholder="Search Region..." 
+                        value={regionSearch}
+                        onChange={e => setRegionSearch(e.target.value)}
+                        className="w-full text-xs p-1.5 border border-slate-200 rounded-lg outline-none focus:border-[#286086]/50 focus:ring-2 focus:ring-[#286086]/10"
+                      />
+                    </div>
+                    <div className="max-h-56 overflow-y-auto custom-scrollbar py-1">
+                      <div 
+                        onClick={() => { setFilterRegion('All Regions'); setFilterBranch('All Branches'); setOpenDropdown(null); setRegionSearch(''); setCurrentPage(1); }}
+                        className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterRegion === 'All Regions' ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
+                      >
+                        {t('allRegions') || 'All Regions'}
+                      </div>
+                      {regions.filter(r => r.toLowerCase().includes(regionSearch.toLowerCase())).map(r => (
+                        <div 
+                          key={r}
+                          onClick={() => { setFilterRegion(r); setFilterBranch('All Branches'); setOpenDropdown(null); setRegionSearch(''); setCurrentPage(1); }}
+                          className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors truncate ${filterRegion === r ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
+                          title={r}
+                        >
+                          {r}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Branch Dropdown */}
+              <div className="relative h-9 bg-slate-50 border border-slate-100 rounded-xl px-3 flex items-center shrink-0">
+                <button 
+                  onClick={() => setOpenDropdown(openDropdown === 'branch' ? null : 'branch')}
+                  className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold outline-none cursor-pointer flex items-center gap-1.5 transition-colors relative z-50"
+                >
+                  <span className="truncate max-w-[120px]">{filterBranch === 'All Branches' ? t('allBranches') || 'All Branches' : filterBranch}</span>
+                  <svg className={`w-3 h-3 transition-transform ${openDropdown === 'branch' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                {openDropdown === 'branch' && (
+                  <div className="absolute top-full left-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.1s_ease-out] flex flex-col">
+                    <div className="p-2 border-b border-slate-100 bg-slate-50/80 shrink-0">
+                      <input 
+                        type="text" 
+                        placeholder="Search Branch..." 
+                        value={branchSearch}
+                        onChange={e => setBranchSearch(e.target.value)}
+                        className="w-full text-xs p-1.5 border border-slate-200 rounded-lg outline-none focus:border-[#286086]/50 focus:ring-2 focus:ring-[#286086]/10"
+                      />
+                    </div>
+                    <div className="max-h-56 overflow-y-auto custom-scrollbar py-1">
+                      <div 
+                        onClick={() => { setFilterBranch('All Branches'); setOpenDropdown(null); setBranchSearch(''); setCurrentPage(1); }}
+                        className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterBranch === 'All Branches' ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
+                      >
+                        {t('allBranches') || 'All Branches'}
+                      </div>
+                      {availableBranches.filter(b => (b.name || b.branch_code).toLowerCase().includes(branchSearch.toLowerCase())).map(b => (
+                        <div 
+                          key={b.id}
+                          onClick={() => { setFilterBranch(b.name || b.branch_code); setOpenDropdown(null); setBranchSearch(''); setCurrentPage(1); }}
+                          className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors truncate ${filterBranch === (b.name || b.branch_code) ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
+                          title={b.name || b.branch_code}
+                        >
+                          {b.name || b.branch_code}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Status Dropdown */}
+              <div className="relative h-9 bg-slate-50 border border-slate-100 rounded-xl px-3 flex items-center shrink-0">
+                <button 
+                  onClick={() => setOpenDropdown(openDropdown === 'status' ? null : 'status')}
+                  className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold outline-none cursor-pointer flex items-center gap-1.5 transition-colors relative z-50"
+                >
+                  <span className="truncate max-w-[100px]">{filterStatus === 'All' || filterStatus === 'All Status' ? t('allStatus') || 'All Status' : filterStatus}</span>
+                  <svg className={`w-3 h-3 transition-transform ${openDropdown === 'status' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                {openDropdown === 'status' && (
+                  <div className="absolute top-full left-0 mt-2 w-40 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.1s_ease-out]">
+                    <div className="py-1">
+                      <div onClick={() => { setFilterStatus('All'); setOpenDropdown(null); setCurrentPage(1); }} className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterStatus === 'All' ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}>{t('allStatus') || 'All Status'}</div>
+                      {['Valid', 'Expired', 'In Progress'].map(st => (
+                        <div key={st} onClick={() => { setFilterStatus(st); setOpenDropdown(null); setCurrentPage(1); }} className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterStatus === st ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}>{st}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2 ml-auto shrink-0">
+              {(filterRegion !== 'All Regions' || filterBranch !== 'All Branches' || filterStatus !== 'All' || searchTerm !== '') && (
+                <button 
+                  onClick={() => {
+                    setFilterRegion('All Regions');
+                    setFilterBranch('All Branches');
+                    setFilterStatus('All');
+                    setSearchTerm('');
+                    setCurrentPage(1);
+                  }}
+                  title="Reset Filters"
+                  className="bg-rose-50 border border-rose-100 hover:bg-rose-100 text-rose-600 px-3 py-1.5 h-9 rounded-xl flex items-center justify-center shadow-sm transition-all font-bold text-[11px] gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
+        ) : null}
       </div>
 
-      {/* TABLE */}
+      {viewMode === 'calendar' ? (
+        <div className="flex-1 bg-white p-4 rounded-3xl border border-slate-200 shadow-sm relative z-10 overflow-hidden flex flex-col">
+          <div className="flex-1 overflow-auto custom-scrollbar h-full fc-custom-theme">
+            <FullCalendar
+              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+              initialView="dayGridMonth"
+              headerToolbar={{
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek'
+              }}
+              events={filteredCals.map(cal => ({
+                id: cal.id,
+                title: cal.assets?.name || 'Calibration',
+                date: cal.next_calibration_date,
+                backgroundColor: new Date(cal.next_calibration_date) < new Date() ? '#ef4444' : '#10b981',
+                borderColor: 'transparent',
+                extendedProps: { cal }
+              }))}
+              eventClick={(info) => {
+                if(canEdit) openEditModal(info.event.extendedProps.cal);
+              }}
+              height="100%"
+            />
+          </div>
+          <style dangerouslySetInnerHTML={{__html: `
+            .fc-custom-theme .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 800; color: #1e293b; }
+            .fc-custom-theme .fc-button-primary { background-color: #286086 !important; border-color: #286086 !important; font-weight: bold; }
+            .fc-custom-theme .fc-button-primary:hover { background-color: #1a4666 !important; border-color: #1a4666 !important; }
+            .fc-custom-theme .fc-button-active { background-color: #1a4666 !important; border-color: #1a4666 !important; }
+            .fc-custom-theme .fc-event { cursor: pointer; border-radius: 4px; padding: 2px 4px; font-size: 10px; font-weight: bold; }
+          `}} />
+        </div>
+      ) : (
       <div className="flex-1 bg-white/70 backdrop-blur-xl border border-white/40 shadow-xl shadow-slate-200/40 rounded-3xl overflow-hidden flex flex-col relative z-10">
         <div className="flex-1 overflow-auto custom-scrollbar">
           <table className="w-full text-left border-collapse min-w-[900px]">
@@ -489,16 +597,38 @@ export default function Calibrations() {
                     )}
                   </td>
                   <td className="px-4 py-4 align-top">
-                    <span className={`text-[9px] font-black px-2 py-1 rounded-md uppercase tracking-widest border inline-block shadow-sm ${
-                      cal.status === 'Valid' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 
-                      cal.status === 'Expired' ? 'bg-rose-50 text-rose-600 border-rose-200' : 
-                      'bg-amber-50 text-amber-600 border-amber-200'
-                    }`}>
-                      {cal.status}
-                    </span>
+                    {(() => {
+                      const nextCalDate = new Date(cal.next_calibration_date);
+                      const now = new Date();
+                      const isExpired = nextCalDate < now;
+                      const displayStatus = isExpired ? 'Expired' : cal.status;
+                      
+                      return (
+                        <span className={`text-[9px] font-black px-2 py-1 rounded-md uppercase tracking-widest border inline-block shadow-sm ${
+                          displayStatus === 'Valid' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 
+                          displayStatus === 'Expired' ? 'bg-rose-50 text-rose-600 border-rose-200' : 
+                          'bg-amber-50 text-amber-600 border-amber-200'
+                        }`}>
+                          {displayStatus}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="px-6 py-4 align-top text-right whitespace-nowrap">
                     <div className="flex items-center justify-end">
+                      {(() => {
+                        const nextCalDate = new Date(cal.next_calibration_date);
+                        const isExpired = nextCalDate < new Date();
+                        if (isExpired) {
+                          return (
+                            <button onClick={() => navigate('/ticketing')} className="mr-2 text-[9px] font-black bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white px-2 py-1.5 rounded-lg shadow-sm transition-colors flex items-center gap-1" title="Request Calibration Ticket">
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" /></svg>
+                              Request
+                            </button>
+                          );
+                        }
+                        return null;
+                      })()}
                       {canEdit && (
                         <button onClick={() => openEditModal(cal)} className="text-amber-500 hover:text-amber-600 p-1.5 mx-0.5 rounded-lg hover:bg-amber-50 transition-colors" title="Edit">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
@@ -539,8 +669,9 @@ export default function Calibrations() {
           </div>
         )}
       </div>
+      )}
 
-      {/* MODAL ADD/EDIT */}
+      {/* Detail/Add Modal */}
       <BaseModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}

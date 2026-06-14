@@ -19,6 +19,8 @@ export default function Ticketing() {
   
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [syncedTickets, setSyncedTickets] = useState(false);
+  const [rawStats, setRawStats] = useState(null);
   const [filterType, setFilterType] = useState('All');
   const [filterRegion, setFilterRegion] = useState('All');
   const [filterBranch, setFilterBranch] = useState('All');
@@ -29,6 +31,7 @@ export default function Ticketing() {
   const [openDropdown, setOpenDropdown] = useState(null);
   const [regionSearch, setRegionSearch] = useState('');
   const [branchSearch, setBranchSearch] = useState('');
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -70,9 +73,13 @@ export default function Ticketing() {
   useEffect(() => {
     fetchTickets();
     fetchBranches();
-    fetchAssets();
-    fetchDepartments();
-    fetchVendors();
+    
+    // Defer data-heavy lookups so initial page load is extremely fast
+    setTimeout(() => {
+      fetchAssets();
+      fetchDepartments();
+      fetchVendors();
+    }, 1000);
     
     // Smart Polling: Refresh tickets every 15 seconds
     const interval = setInterval(() => {
@@ -124,6 +131,8 @@ export default function Ticketing() {
     }
   };
 
+  const getFileUrl = (url) => url ? (url.startsWith('http') ? url : api.defaults.baseURL + url) : '#';
+
   const fetchDepartments = async () => {
     try {
       const res = await api.get('/setup/departments').catch(() => ({ data: { data: [] } }));
@@ -158,6 +167,7 @@ export default function Ticketing() {
 
   const fetchTickets = async (silent = false) => {
     if (!silent) setLoading(true);
+    setSyncedTickets(false);
     try {
       const isAllBranch = Array.isArray(user?.branch) ? user.branch.includes('ALL') : user?.branch === 'ALL';
       const isAdminSystem = ['Master Admin', 'Admin System'].includes(user?.role);
@@ -165,13 +175,36 @@ export default function Ticketing() {
         ? null 
         : (Array.isArray(user?.branch) ? user.branch.join(',') : user?.branch);
         
-      const url = apiBranchParam ? `/tickets?branch=${encodeURIComponent(apiBranchParam)}` : '/tickets';
-      const res = await api.get(url).catch(() => ({ data: { data: [] } }));
-      setTickets(res.data.data || []);
+      const baseUrl = apiBranchParam ? `/tickets?branch=${encodeURIComponent(apiBranchParam)}` : '/tickets';
+      const fastUrl = baseUrl.includes('?') ? `${baseUrl}&limit=100` : `${baseUrl}?limit=100`;
+      
+      // 1. FAST LOAD
+      const resFast = await api.get(fastUrl).catch(() => ({ data: { data: [] } }));
+      setTickets(resFast.data.data || []);
+      
+      // Fetch Stats for KPI
+      try {
+        const statsUrl = apiBranchParam ? `/dashboard/stats?branch=${encodeURIComponent(apiBranchParam)}` : '/dashboard/stats';
+        const statsRes = await api.get(statsUrl, { headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache', 'Expires': '0' } });
+        if (statsRes.data && statsRes.data.ticketStats) {
+            setRawStats(statsRes.data.ticketStats);
+        }
+      } catch (e) { console.error("Failed to fetch ticket stats"); }
+
+      if (!silent) setLoading(false);
+      
+      // 2. BACKGROUND SYNC (ALL DATA)
+      setTimeout(async () => {
+         try {
+             const resFull = await api.get(baseUrl).catch(() => ({ data: { data: [] } }));
+             setTickets(resFull.data.data || []);
+             setSyncedTickets(true);
+         } catch(e){}
+      }, 100);
     } catch (err) {
       console.error(err);
+      if (!silent) setLoading(false);
     }
-    if (!silent) setLoading(false);
   };
 
   const handleOpenCreateModal = () => {
@@ -457,195 +490,277 @@ export default function Ticketing() {
     return pages;
   };
 
+  const isDefaultDate = () => {
+    const d = new Date();
+    const defaultStart = new Date(d.getFullYear(), d.getMonth(), 1).toLocaleDateString('en-CA');
+    const defaultEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0).toLocaleDateString('en-CA');
+    return startDate === defaultStart && endDate === defaultEnd;
+  };
+
+  const hasLocalFilters = searchQuery !== '' || filterRegion !== 'All' || filterBranch !== 'All' || filterType !== 'All' || !isDefaultDate();
+  const useStatsForKpi = !syncedTickets && !hasLocalFilters && rawStats;
+
+  const kpiTotal = useStatsForKpi ? rawStats.Total : filteredTickets.length;
+  const kpiOpen = useStatsForKpi ? rawStats.Open : filteredTickets.filter(t => t.status === 'Open').length;
+  const kpiInProgress = useStatsForKpi ? rawStats["In Progress"] : filteredTickets.filter(t => t.status === 'In Progress').length;
+  const kpiResolved = useStatsForKpi ? rawStats.Resolved : filteredTickets.filter(t => t.status === 'Resolved').length;
+  const kpiClosed = useStatsForKpi ? rawStats.Closed : filteredTickets.filter(t => t.status === 'Closed').length;
+  const kpiRejected = useStatsForKpi ? rawStats.Rejected : filteredTickets.filter(t => t.status === 'Rejected').length;
+
   return (
     <div className="absolute inset-0 flex flex-col p-4 sm:p-6 lg:p-8 animate-[fadeIn_0.4s_ease-out]">
       <div className="flex flex-col gap-4 mb-6 shrink-0 z-20">
-        {/* Top Row: Actions */}
-        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center w-full gap-4">
-          <div className="flex items-center gap-3 w-full xl:w-auto overflow-x-auto custom-scrollbar pb-2 xl:pb-0 relative">
+        
+        {/* 1st Row: Main Actions & Search */}
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center w-full gap-3 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm relative z-50">
+          <div className="flex items-center gap-2 w-full xl:w-auto overflow-x-auto custom-scrollbar pb-1 xl:pb-0 shrink-0">
             <button 
-              onClick={() => setShowGuide(true)}
-              className="w-11 h-11 rounded-full bg-white text-blue-600 flex items-center justify-center hover:bg-blue-50 transition-all shadow-sm border border-blue-100 font-bold text-xl cursor-pointer shrink-0"
-              title={t('ticketGuide')}
+              onClick={() => fetchTickets(true)} 
+              title={t('refreshData')}
+              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all shrink-0"
             >
-              !
+              <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
             </button>
             
-            {/* View Mode Toggle */}
-            <div className="flex bg-slate-100 rounded-xl p-1 shadow-inner h-11 items-center w-full sm:w-auto overflow-x-auto custom-scrollbar">
+            <button 
+              onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-sm shrink-0 border ${isFiltersOpen ? 'bg-[#286086] text-white border-[#286086]' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+              title="Toggle Filters"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+            </button>
+
+            {/* KPI Pills */}
+            <div className="hidden sm:flex items-center gap-2 px-3 border-l border-slate-200/60 h-8 ml-2 shrink-0">
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2 py-1 rounded-md shadow-sm whitespace-nowrap">
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">{t('total') || 'Total'}</span>
+                <span className="text-[10px] font-extrabold text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-100">{kpiTotal}</span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-md shadow-sm whitespace-nowrap">
+                <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wider">Open</span>
+                <span className="text-[10px] font-extrabold text-emerald-700 bg-white px-1.5 py-0.5 rounded border border-emerald-50">{kpiOpen}</span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-100 px-2 py-1 rounded-md shadow-sm whitespace-nowrap">
+                <span className="text-[9px] font-black text-amber-600 uppercase tracking-wider">In Prog</span>
+                <span className="text-[10px] font-extrabold text-amber-700 bg-white px-1.5 py-0.5 rounded border border-amber-50">{kpiInProgress}</span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-100 px-2 py-1 rounded-md shadow-sm whitespace-nowrap">
+                <span className="text-[9px] font-black text-blue-600 uppercase tracking-wider">Resolved</span>
+                <span className="text-[10px] font-extrabold text-blue-700 bg-white px-1.5 py-0.5 rounded border border-blue-50">{kpiResolved}</span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 px-2 py-1 rounded-md shadow-sm whitespace-nowrap">
+                <span className="text-[9px] font-black text-slate-600 uppercase tracking-wider">Closed</span>
+                <span className="text-[10px] font-extrabold text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-100">{kpiClosed}</span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-100 px-2 py-1 rounded-md shadow-sm whitespace-nowrap">
+                <span className="text-[9px] font-black text-rose-600 uppercase tracking-wider">Rejected</span>
+                <span className="text-[10px] font-extrabold text-rose-700 bg-white px-1.5 py-0.5 rounded border border-rose-50">{kpiRejected}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full xl:w-auto shrink-0 justify-between xl:justify-end">
+            <div className="flex bg-slate-100 rounded-xl p-1 shadow-inner h-10 items-center w-auto">
               <button onClick={() => setViewMode('kanban')} className={`px-4 py-1.5 h-full rounded-lg text-[11px] font-bold transition-all whitespace-nowrap ${viewMode === 'kanban' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{t('kanban')}</button>
               <button onClick={() => setViewMode('table')} className={`px-4 py-1.5 h-full rounded-lg text-[11px] font-bold transition-all whitespace-nowrap ${viewMode === 'table' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{t('table')}</button>
             </div>
 
-            {/* Date Filters */}
-            <div className="flex items-center gap-2 bg-white px-3 h-11 rounded-xl border border-slate-200 shadow-sm shrink-0">
-               <Flatpickr 
-                 value={startDate} 
-                 onChange={([date]) => setStartDate(date ? date.toLocaleDateString('en-CA') : '')} 
-                 options={{ dateFormat: "Y-m-d" }}
-                 className="text-xs font-bold text-slate-600 outline-none bg-transparent cursor-pointer w-24 placeholder-slate-400" 
-                 placeholder="Start Date"
-               />
-               <span className="text-slate-300 font-medium">-</span>
-               <Flatpickr 
-                 value={endDate} 
-                 onChange={([date]) => setEndDate(date ? date.toLocaleDateString('en-CA') : '')} 
-                 options={{ dateFormat: "Y-m-d" }}
-                 className="text-xs font-bold text-slate-600 outline-none bg-transparent cursor-pointer w-24 placeholder-slate-400" 
-                 placeholder="End Date"
-               />
-            </div>
-          </div>
+            <div className="hidden sm:block w-px h-6 bg-slate-200 mx-1 shrink-0"></div>
 
-          <div className="flex items-center gap-2 w-full xl:w-auto overflow-x-auto custom-scrollbar justify-start">
-            {canExport && (
-              <button 
-                onClick={exportToCSV}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 h-11 rounded-xl font-bold text-sm shadow-sm transition-all flex items-center gap-2 shrink-0"
-                title={t('exportCSV')}
-              >
-                <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                {t('exportCSV')}
-              </button>
-            )}
+            <div className="relative flex-1 xl:w-64 min-w-[150px] shrink-0 bg-slate-50 p-1 rounded-xl border border-slate-100 shadow-inner flex items-center h-10">
+              <svg className="w-4 h-4 absolute left-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              <input 
+                type="text" 
+                placeholder={t('searchTickets') || "Search tickets..."}
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-1 bg-transparent border-none outline-none text-xs font-bold text-slate-700 h-full"
+              />
+            </div>
+            
             {canCreate && (
               <button 
                 onClick={handleOpenCreateModal}
-                className="bg-[#286086] hover:bg-[#1a4666] text-white px-6 h-11 rounded-xl font-bold text-sm shadow-lg shadow-blue-900/20 transition-all flex items-center gap-2 shrink-0"
+                className="bg-[#286086] hover:bg-[#1a4666] text-white px-4 h-10 rounded-xl font-bold text-[11px] shadow-lg shadow-blue-900/20 transition-all flex items-center justify-center gap-2 shrink-0 whitespace-nowrap"
               >
-                <span className="text-lg leading-none">+</span> {t('createTicket')}
+                <span className="text-sm leading-none">+</span> {t('createTicket')}
               </button>
             )}
           </div>
         </div>
 
-        {/* Bottom Row: Detailed Filters Bar */}
-        <div className="flex flex-col xl:flex-row justify-between items-center w-full gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm relative z-50">
-          <div className="flex flex-wrap items-center justify-center gap-y-2 gap-x-2 w-full xl:w-auto">
-            <svg className="w-4 h-4 text-[#286086] ml-2 shrink-0 hidden md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
-            
-            {openDropdown && (
-              <div className="fixed inset-0 z-40" onClick={() => setOpenDropdown(null)}></div>
-            )}
-            
-            {/* Custom Region Dropdown */}
-            <div className="relative h-9 flex items-center shrink-0">
-              <button 
-                onClick={() => setOpenDropdown(openDropdown === 'region' ? null : 'region')}
-                className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold px-3 outline-none cursor-pointer flex items-center gap-2 transition-colors relative z-50"
-              >
-                <span className="truncate max-w-[120px]">{filterRegion === 'All' ? t('allRegions') || 'All Regions' : filterRegion}</span>
-                <svg className={`w-3 h-3 transition-transform ${openDropdown === 'region' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-              </button>
-              {openDropdown === 'region' && (
-                <div className="absolute top-full left-0 mt-3 w-44 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.2s_ease-out] flex flex-col">
-                  <div className="p-2 border-b border-slate-100 bg-slate-50/80 shrink-0">
-                    <input 
-                      type="text" 
-                      placeholder="Search Region..." 
-                      value={regionSearch}
-                      onChange={e => setRegionSearch(e.target.value)}
-                      className="w-full text-xs p-1.5 border border-slate-200 rounded-lg outline-none focus:border-[#286086]/50 focus:ring-2 focus:ring-[#286086]/10"
-                    />
-                  </div>
-                  <div className="max-h-56 overflow-y-auto custom-scrollbar py-1">
-                    <div 
-                      onClick={() => { setFilterRegion('All'); setFilterBranch('All'); setOpenDropdown(null); setRegionSearch(''); }}
-                      className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterRegion === 'All' ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
-                    >
-                      {t('allRegions') || 'All Regions'}
-                    </div>
-                    {regions.filter(r => r.toLowerCase().includes(regionSearch.toLowerCase())).map(r => (
-                      <div 
-                        key={r}
-                        onClick={() => { setFilterRegion(r); setFilterBranch('All'); setOpenDropdown(null); setRegionSearch(''); }}
-                        className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterRegion === r ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
-                      >
-                        {r}
-                      </div>
-                    ))}
-                  </div>
-                </div>
+        {/* 2nd Row: Expandable Filters */}
+        {isFiltersOpen ? (
+          <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center w-full gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm relative z-20 animate-[fadeIn_0.2s_ease-out]">
+            <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
+              
+              {openDropdown && (
+                <div className="fixed inset-0 z-40" onClick={() => setOpenDropdown(null)}></div>
               )}
-            </div>
+              
+              {/* Region Dropdown */}
+              <div className="relative h-9 bg-slate-50 border border-slate-100 rounded-xl px-3 flex items-center shrink-0">
+                <button 
+                  onClick={() => setOpenDropdown(openDropdown === 'region' ? null : 'region')}
+                  className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold outline-none cursor-pointer flex items-center gap-1.5 transition-colors relative z-50"
+                >
+                  <span className="truncate max-w-[120px]">{filterRegion === 'All' ? t('allRegions') || 'All Regions' : filterRegion}</span>
+                  <svg className={`w-3 h-3 transition-transform ${openDropdown === 'region' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                {openDropdown === 'region' && (
+                  <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.1s_ease-out] flex flex-col">
+                    <div className="p-2 border-b border-slate-100 bg-slate-50/80 shrink-0">
+                      <input 
+                        type="text" 
+                        placeholder="Search Region..." 
+                        value={regionSearch}
+                        onChange={e => setRegionSearch(e.target.value)}
+                        className="w-full text-xs p-1.5 border border-slate-200 rounded-lg outline-none focus:border-[#286086]/50 focus:ring-2 focus:ring-[#286086]/10"
+                      />
+                    </div>
+                    <div className="max-h-56 overflow-y-auto custom-scrollbar py-1">
+                      <div 
+                        onClick={() => { setFilterRegion('All'); setFilterBranch('All'); setOpenDropdown(null); setRegionSearch(''); setCurrentPage(1); }}
+                        className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterRegion === 'All' ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
+                      >
+                        {t('allRegions') || 'All Regions'}
+                      </div>
+                      {regions.filter(r => r.toLowerCase().includes(regionSearch.toLowerCase())).map(r => (
+                        <div 
+                          key={r}
+                          onClick={() => { setFilterRegion(r); setFilterBranch('All'); setOpenDropdown(null); setRegionSearch(''); setCurrentPage(1); }}
+                          className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors truncate ${filterRegion === r ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
+                          title={r}
+                        >
+                          {r}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
 
-            <div className="hidden md:block w-px h-5 bg-slate-200 mx-1"></div>
-            
-            {/* Custom Branch Dropdown */}
-            <div className="relative h-9 flex items-center shrink-0">
-              <button 
-                onClick={() => setOpenDropdown(openDropdown === 'branch' ? null : 'branch')}
-                className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold px-3 outline-none cursor-pointer flex items-center gap-2 transition-colors relative z-50"
-              >
-                <span className="truncate max-w-[150px]">{filterBranch === 'All' ? t('allBranches') || 'All Branches' : filterBranch}</span>
-                <svg className={`w-3 h-3 transition-transform ${openDropdown === 'branch' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-              </button>
-              {openDropdown === 'branch' && (
-                <div className="absolute top-full left-0 mt-3 w-56 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.2s_ease-out] flex flex-col">
-                  <div className="p-2 border-b border-slate-100 bg-slate-50/80 shrink-0">
-                    <input 
-                      type="text" 
-                      placeholder="Search Branch..." 
-                      value={branchSearch}
-                      onChange={e => setBranchSearch(e.target.value)}
-                      className="w-full text-xs p-1.5 border border-slate-200 rounded-lg outline-none focus:border-[#286086]/50 focus:ring-2 focus:ring-[#286086]/10"
-                    />
-                  </div>
-                  <div className="max-h-56 overflow-y-auto custom-scrollbar py-1">
-                    <div 
-                      onClick={() => { setFilterBranch('All'); setOpenDropdown(null); setBranchSearch(''); }}
-                      className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterBranch === 'All' ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
-                    >
-                      {t('allBranches') || 'All Branches'}
+              {/* Branch Dropdown */}
+              <div className="relative h-9 bg-slate-50 border border-slate-100 rounded-xl px-3 flex items-center shrink-0">
+                <button 
+                  onClick={() => setOpenDropdown(openDropdown === 'branch' ? null : 'branch')}
+                  className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold outline-none cursor-pointer flex items-center gap-1.5 transition-colors relative z-50"
+                >
+                  <span className="truncate max-w-[120px]">{filterBranch === 'All' ? t('allBranches') || 'All Branches' : filterBranch}</span>
+                  <svg className={`w-3 h-3 transition-transform ${openDropdown === 'branch' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                {openDropdown === 'branch' && (
+                  <div className="absolute top-full left-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.1s_ease-out] flex flex-col">
+                    <div className="p-2 border-b border-slate-100 bg-slate-50/80 shrink-0">
+                      <input 
+                        type="text" 
+                        placeholder="Search Branch..." 
+                        value={branchSearch}
+                        onChange={e => setBranchSearch(e.target.value)}
+                        className="w-full text-xs p-1.5 border border-slate-200 rounded-lg outline-none focus:border-[#286086]/50 focus:ring-2 focus:ring-[#286086]/10"
+                      />
                     </div>
-                    {availableBranches.filter(b => b.name.toLowerCase().includes(branchSearch.toLowerCase())).map(b => (
+                    <div className="max-h-56 overflow-y-auto custom-scrollbar py-1">
                       <div 
-                        key={b.id}
-                        onClick={() => { setFilterBranch(b.name); setOpenDropdown(null); setBranchSearch(''); }}
-                        className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterBranch === b.name ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
+                        onClick={() => { setFilterBranch('All'); setOpenDropdown(null); setBranchSearch(''); setCurrentPage(1); }}
+                        className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterBranch === 'All' ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
                       >
-                        {b.name}
+                        {t('allBranches') || 'All Branches'}
                       </div>
-                    ))}
+                      {availableBranches.filter(b => (b.name || b.branch_code).toLowerCase().includes(branchSearch.toLowerCase())).map(b => (
+                        <div 
+                          key={b.id}
+                          onClick={() => { setFilterBranch(b.name || b.branch_code); setOpenDropdown(null); setBranchSearch(''); setCurrentPage(1); }}
+                          className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors truncate ${filterBranch === (b.name || b.branch_code) ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
+                          title={b.name || b.branch_code}
+                        >
+                          {b.name || b.branch_code}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
+              </div>
+
+              {/* Ticket Type Dropdown */}
+              <div className="relative h-9 bg-slate-50 border border-slate-100 rounded-xl px-3 flex items-center shrink-0">
+                <button 
+                  onClick={() => setOpenDropdown(openDropdown === 'type' ? null : 'type')}
+                  className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold outline-none cursor-pointer flex items-center gap-1.5 transition-colors relative z-50"
+                >
+                  <span className="truncate max-w-[100px]">{filterType === 'All' ? t('allTypes') || 'All Types' : filterType}</span>
+                  <svg className={`w-3 h-3 transition-transform ${openDropdown === 'type' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                {openDropdown === 'type' && (
+                  <div className="absolute top-full left-0 mt-2 w-40 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.1s_ease-out]">
+                    <div className="py-1">
+                      {['All', 'Repair', 'Replacement', 'Calibration'].map(st => (
+                        <div 
+                          key={st}
+                          onClick={() => { setFilterType(st); setOpenDropdown(null); setCurrentPage(1); }}
+                          className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterType === st ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
+                        >
+                          {st === 'All' ? t('allTypes') || 'All Types' : st}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Date Filters */}
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-3 h-9 rounded-xl shrink-0">
+                 <Flatpickr 
+                   value={startDate} 
+                   onChange={([date]) => setStartDate(date ? date.toLocaleDateString('en-CA') : '')} 
+                   options={{ dateFormat: "Y-m-d" }}
+                   className="text-xs font-bold text-slate-600 outline-none bg-transparent cursor-pointer w-20 placeholder-slate-400" 
+                   placeholder="Start Date"
+                 />
+                 <span className="text-slate-300 font-black">-</span>
+                 <Flatpickr 
+                   value={endDate} 
+                   onChange={([date]) => setEndDate(date ? date.toLocaleDateString('en-CA') : '')} 
+                   options={{ dateFormat: "Y-m-d" }}
+                   className="text-xs font-bold text-slate-600 outline-none bg-transparent cursor-pointer w-20 placeholder-slate-400" 
+                   placeholder="End Date"
+                 />
+              </div>
+
+            </div>
+            
+            <div className="flex items-center gap-2 ml-auto shrink-0">
+              {(filterRegion !== 'All' || filterBranch !== 'All' || filterType !== 'All' || startDate !== '' || endDate !== '' || searchQuery !== '') && (
+                <button 
+                  onClick={() => {
+                    setFilterRegion('All');
+                    setFilterBranch('All');
+                    setFilterType('All');
+                    setSearchQuery('');
+                    setStartDate('');
+                    setEndDate('');
+                    setCurrentPage(1);
+                  }}
+                  title="Reset Filters"
+                  className="bg-rose-50 border border-rose-100 hover:bg-rose-100 text-rose-600 px-3 py-1.5 h-9 rounded-xl flex items-center justify-center shadow-sm transition-all font-bold text-[11px] gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  Reset
+                </button>
+              )}
+
+              {canExport && (
+                <button 
+                  onClick={exportToCSV} 
+                  title="Export CSV"
+                  className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-600 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm transition-all"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                </button>
               )}
             </div>
-            
-            <div className="w-px h-5 bg-slate-200 mx-1 hidden sm:block"></div>
-            
-            {/* Search Bar */}
-            <div className="relative flex items-center px-1 shrink-0 w-full sm:w-auto">
-               <svg className="w-4 h-4 text-slate-400 absolute left-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-               <input 
-                 type="text" 
-                 placeholder={t('searchTickets')} 
-                 value={searchQuery}
-                 onChange={e => setSearchQuery(e.target.value)}
-                 className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-xs font-bold text-slate-700 w-full sm:w-56 focus:ring-2 focus:ring-[#286086]/20 outline-none placeholder:text-slate-400 transition-all"
-               />
-            </div>
           </div>
-          
-          <div className="flex items-center justify-center gap-1 shrink-0 overflow-x-auto custom-scrollbar w-full xl:w-auto pb-1 xl:pb-0">
-            <button 
-              onClick={() => fetchTickets(true)} 
-              title={t('refreshData') || 'Refresh Data'}
-              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all shrink-0 mr-1"
-            >
-              <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-            </button>
-            {['All', 'Repair', 'Replacement', 'Calibration'].map(ft => (
-              <button 
-                key={ft}
-                onClick={() => setFilterType(ft)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${filterType === ft ? 'bg-slate-100 text-[#286086] shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
-              >
-                {ft === 'All' ? t('all') : ft === 'Replacement' ? t('replacement') : ft === 'Calibration' ? t('calibration') : t('repair')}
-              </button>
-            ))}
-          </div>
-        </div>
+        ) : null}
       </div>
 
       {loading ? (
@@ -671,7 +786,19 @@ export default function Ticketing() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {paginatedTickets.length === 0 ? (
-                  <tr><td colSpan="6" className="text-center py-12 text-slate-500 font-medium">{t('noTicketsFound')}</td></tr>
+                  <tr>
+                    <td colSpan="6" className="text-center py-16 px-4">
+                      <div className="flex flex-col items-center justify-center space-y-3">
+                        <div className="w-16 h-16 bg-slate-50 border border-slate-100 rounded-full flex items-center justify-center shadow-inner">
+                          <svg className="w-8 h-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        </div>
+                        <div>
+                           <p className="text-sm font-bold text-slate-600">{t('noTicketsFound') || 'Belum ada tiket saat ini'}</p>
+                           <p className="text-[11px] text-slate-400 mt-0.5">Coba sesuaikan filter atau tambahkan tiket baru.</p>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
                 ) : paginatedTickets.map(tck => {
                   const assetName = tck.asset_id ? assets.find(a => a.id === tck.asset_id)?.name : null;
                   const displayTitle = assetName || tck.title;
@@ -880,8 +1007,8 @@ export default function Ticketing() {
                                   <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => handleUploadSignedForm(tck.id, e)} />
                                 </label>
                               ) : (
-                                <a href={api.defaults.baseURL + tck.signed_form_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="text-[9px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-2 py-1.5 rounded-md transition-colors flex items-center gap-1 border border-emerald-200 whitespace-nowrap shadow-sm">
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                <a href={getFileUrl(tck.signed_form_url)} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="text-[9px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-2 py-1.5 rounded-md transition-colors flex items-center gap-1 border border-emerald-200 whitespace-nowrap shadow-sm">
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                                   View Form
                                 </a>
                               )}
@@ -1028,8 +1155,8 @@ export default function Ticketing() {
                 <h3 className="font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">{t('attachments')}</h3>
                 <div className="flex gap-4 flex-wrap">
                    {selectedTicketForHistory.photo_url ? (
-                     <a href={api.defaults.baseURL + selectedTicketForHistory.photo_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-700 rounded-xl border border-blue-200 hover:bg-blue-100 transition-colors shadow-sm">
-                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                     <a href={getFileUrl(selectedTicketForHistory.photo_url)} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-700 rounded-xl border border-blue-200 hover:bg-blue-100 transition-colors shadow-sm">
+                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                        <span className="font-bold text-xs">{t('photoAttachment')}</span>
                      </a>
                    ) : (
@@ -1040,8 +1167,8 @@ export default function Ticketing() {
                    )}
 
                    {selectedTicketForHistory.signed_form_url ? (
-                     <a href={api.defaults.baseURL + selectedTicketForHistory.signed_form_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm">
-                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                     <a href={getFileUrl(selectedTicketForHistory.signed_form_url)} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm">
+                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                        <span className="font-bold text-xs">Form Permintaan (Signed)</span>
                      </a>
                    ) : (

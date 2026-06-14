@@ -18,7 +18,9 @@ const PublicAssetPortal = lazy(() => import('./pages/PublicAssetPortal'));
 const Roles = lazy(() => import('./pages/user-managements/Roles'));
 const Users = lazy(() => import('./pages/user-managements/Users'));
 const ProfileConfigurations = lazy(() => import('./pages/user-managements/ProfileConfigurations'));
-const SLASettings = lazy(() => import('./pages/user-managements/SLASettings'));
+const SLASettings = lazy(() => import('./pages/settings/SLASettings'));
+const FileNamingConfig = lazy(() => import('./pages/settings/FileNamingConfig'));
+const MasterComponentSettings = lazy(() => import('./pages/MasterComponentSettings'));
 
 const PageFallback = () => (
   <div className="p-8 w-full h-[80vh] flex flex-col gap-8 items-center">
@@ -49,7 +51,10 @@ export default function App() {
               <Route path="/user-managements/roles" element={<Suspense fallback={<PageFallback />}><Roles /></Suspense>} />
               <Route path="/user-managements/profile-configurations" element={<Suspense fallback={<PageFallback />}><ProfileConfigurations /></Suspense>} />
               <Route path="/user-managements/users" element={<Suspense fallback={<PageFallback />}><Users /></Suspense>} />
-              <Route path="/user-managements/sla-settings" element={<Suspense fallback={<PageFallback />}><SLASettings /></Suspense>} />
+              {/* SETTINGS */}
+              <Route path="/settings/sla-settings" element={<Suspense fallback={<PageFallback />}><SLASettings /></Suspense>} />
+              <Route path="/settings/file-naming" element={<Suspense fallback={<PageFallback />}><FileNamingConfig /></Suspense>} />
+              <Route path="/settings/master-components" element={<Suspense fallback={<PageFallback />}><MasterComponentSettings /></Suspense>} />
             </Route>
           </Route>
         </Routes>

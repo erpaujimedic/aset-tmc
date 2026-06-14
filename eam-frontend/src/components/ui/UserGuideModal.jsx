@@ -89,6 +89,12 @@ export default function UserGuideModal({ isOpen, onClose }) {
               <li>Mendukung proses persetujuan (approval) berjenjang.</li>
               <li>Meminimalisir kehilangan aset melalui tracking pengiriman barang.</li>
             </ul>
+            <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 mt-4">
+              <h4 className="text-sm font-bold text-blue-800 mb-1">⚡ Global Keyboard Shortcuts</h4>
+              <p className="text-xs text-blue-700">
+                Gunakan kombinasi tombol <strong>Alt + Shift + [Huruf]</strong> dari layar mana saja untuk pindah halaman super cepat. Contoh: <code>Alt+Shift+D</code> (Dashboard), <code>Alt+Shift+A</code> (Aset), <code>Alt+Shift+C</code> (Kalibrasi), dll.
+              </p>
+            </div>
           </div>
         );
       case 'roles':
@@ -138,9 +144,10 @@ export default function UserGuideModal({ isOpen, onClose }) {
             <p className="text-sm text-slate-600 mb-2">Halaman utama untuk mengelola database fisik aset perusahaan.</p>
             <ul className="list-decimal list-inside text-slate-600 text-sm space-y-2">
               <li><strong>Menambah Aset:</strong> Klik tombol `+ New Asset` untuk menginput data secara manual.</li>
+              <li><strong>QR & Barcode Scanner:</strong> Arahkan kamera HP / klik tombol Scanner di dekat kolom pencarian untuk memindai fisik barang secara langsung dan mencari data aset tanpa mengetik.</li>
+              <li><strong>Visual Timeline:</strong> Cek detail sebuah aset dan buka tab "Riwayat" untuk melihat perjalanan lengkap mutasi barang dalam bentuk grafik garis waktu (Timeline) yang mudah dibaca.</li>
               <li><strong>Import/Export Bulk:</strong> Anda bisa mengunggah file Excel/CSV jika ingin menambah data sekaligus, atau mengunduh daftar aset saat ini.</li>
               <li><strong>Print Barcode:</strong> Centang beberapa aset, lalu klik "Bulk Print Barcode" untuk mencetak stiker QR/Barcode yang dapat ditempelkan ke fisik barang.</li>
-              <li><strong>Lokasi & Filter:</strong> Gunakan filter Region, Branch, dan Category untuk memilah data secara cepat.</li>
             </ul>
           </div>
         );
@@ -152,10 +159,10 @@ export default function UserGuideModal({ isOpen, onClose }) {
               Alur peminjaman antar cabang wajib melalui proses Request ➔ Approval.
             </div>
             <ul className="list-disc list-inside text-slate-600 text-sm space-y-2">
-              <li><strong>Browse Assets:</strong> Tab ini digunakan untuk mencari aset yang *Available*. Klik "Pinjam" untuk membuat pengajuan.</li>
+              <li><strong>Browse Assets:</strong> Tab ini digunakan untuk mencari aset yang *Available*. Klik "Pinjam" untuk membuat pengajuan. Gunakan <strong>QR Scanner</strong> untuk mempercepat pencarian aset yang ingin dipinjam.</li>
               <li><strong>My Requests:</strong> Berisi status pengajuan yang Anda buat. Apakah masih *Pending*, sudah *Approved*, atau sedang dipinjam.</li>
               <li><strong>Approvals:</strong> Hanya terlihat oleh Admin/Manager. Digunakan untuk menyetujui (*Approve*) atau menolak (*Reject*) permintaan pinjaman dari cabang lain.</li>
-              <li><strong>Return (Pengembalian):</strong> Saat selesai, peminjam klik "Kembalikan" dan wajib memberikan bukti foto kondisi barang saat dikembalikan.</li>
+              <li><strong>Return (Pengembalian):</strong> Saat selesai, peminjam klik "Kembalikan", gunakan scanner untuk verifikasi fisik, dan wajib memberikan bukti foto kondisi barang.</li>
             </ul>
           </div>
         );
@@ -167,7 +174,7 @@ export default function UserGuideModal({ isOpen, onClose }) {
             <ul className="list-decimal list-inside text-slate-600 text-sm space-y-2">
               <li><strong>Mutasi vs Peminjaman:</strong> Terdapat dua jenis pengiriman, yaitu Mutasi Permanen (pindah hak milik cabang) dan Peminjaman (sementara).</li>
               <li><strong>In Transit:</strong> Saat barang dikirim, status akan berubah menjadi `In Transit`. Pengirim wajib menyertakan foto resi atau barang ke Google Drive melalui form sistem.</li>
-              <li><strong>Penerimaan Barang:</strong> Penerima mengecek fisik barang, lalu mengklik "Terima" di sistem EAM beserta foto bukti barang yang telah sampai.</li>
+              <li><strong>Penerimaan Barang & Scanner:</strong> Penerima mengecek fisik barang, gunakan fitur <strong>QR Scanner</strong> pada tab <em>In Transit</em> untuk melakukan validasi penerimaan super cepat, lalu klik "Terima".</li>
               <li>Semua perpindahan barang tercatat secara detail dalam "Movement History" tiap aset.</li>
             </ul>
           </div>
@@ -179,12 +186,16 @@ export default function UserGuideModal({ isOpen, onClose }) {
             <p className="text-sm text-slate-600 mb-2">Untuk memastikan aset alat ukur (atau perangkat medis/teknik) tetap akurat dan bersertifikasi.</p>
             <div className="space-y-3">
               <div className="bg-slate-50 p-3 border border-slate-200 rounded-lg">
+                <h4 className="font-bold text-slate-800 mb-1">Toggle Tampilan (List / Calendar)</h4>
+                <p className="text-sm text-slate-600">Gunakan tombol toggle di bagian atas untuk beralih dari tampilan tabel biasa menjadi tampilan <strong>Kalender Visual (FullCalendar)</strong>. Ini mempermudah Anda melihat jadwal kalibrasi secara bulanan/mingguan.</p>
+              </div>
+              <div className="bg-slate-50 p-3 border border-slate-200 rounded-lg">
                 <span className="inline-block px-2 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded mb-2">Valid</span>
-                <p className="text-sm text-slate-600">Aset masih dalam masa kalibrasi aman. Sistem otomatis mengawasi *Next Calibration Date*.</p>
+                <p className="text-sm text-slate-600">Aset masih dalam masa kalibrasi aman. Ditandai warna biru/hijau pada kalender.</p>
               </div>
               <div className="bg-slate-50 p-3 border border-slate-200 rounded-lg">
                 <span className="inline-block px-2 py-1 bg-rose-100 text-rose-700 text-xs font-bold rounded mb-2">Expired</span>
-                <p className="text-sm text-slate-600">Masa kalibrasi sudah lewat. Sistem akan memunculkan *alert* peringatan di bagian atas layar agar segera dilakukan kalibrasi ulang.</p>
+                <p className="text-sm text-slate-600">Masa kalibrasi sudah lewat. Akan menyala merah terang di Kalender Visual dan memunculkan peringatan agar segera dilakukan kalibrasi ulang.</p>
               </div>
             </div>
           </div>

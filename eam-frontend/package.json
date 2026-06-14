@@ -10,12 +10,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fullcalendar/daygrid": "^6.1.20",
+    "@fullcalendar/interaction": "^6.1.20",
+    "@fullcalendar/react": "^6.1.20",
+    "@fullcalendar/timegrid": "^6.1.20",
     "@supabase/supabase-js": "^2.107.0",
     "axios": "^1.17.0",
     "echarts": "^6.1.0",
     "echarts-for-react": "^3.0.6",
     "flatpickr": "^4.6.13",
     "html2pdf.js": "^0.14.0",
+    "html5-qrcode": "^2.3.8",
     "leaflet": "^1.9.4",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.6",

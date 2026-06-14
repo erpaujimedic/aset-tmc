@@ -7,6 +7,7 @@ import Swal from 'sweetalert2';
 import useI18nStore from '../store/i18nStore';
 import useAuthStore from '../store/authStore';
 import BaseModal from '../components/ui/BaseModal';
+import QRScannerModal from '../components/ui/QRScannerModal';
 import useSWR from 'swr';
 import Flatpickr from "react-flatpickr";
 import "flatpickr/dist/themes/light.css";
@@ -28,7 +29,18 @@ export default function AssetMovements() {
   const apiBranchParam = (isAdminSystem || isAllBranch) ? null : (Array.isArray(user?.branch) ? user.branch.join(',') : user?.branch);
 
   const movEndpoint = apiBranchParam ? `/movements?branch=${encodeURIComponent(apiBranchParam)}` : '/movements';
-  const { data: movements = [], mutate: mutateMovements, isValidating: isMovementsLoading } = useSWR(movEndpoint, fetcher, { revalidateOnFocus: false });
+  const fastMovEndpoint = movEndpoint.includes('?') ? `${movEndpoint}&limit=100` : `${movEndpoint}?limit=100`;
+
+  const { data: fastMovements = [], mutate: mutateFastMovements, isValidating: isFastLoading } = useSWR(fastMovEndpoint, fetcher, { revalidateOnFocus: false });
+  const { data: syncedMovements, mutate: mutateSyncedMovements, isValidating: isSyncedLoading } = useSWR(movEndpoint, fetcher, { revalidateOnFocus: false, dedupingInterval: 60000 });
+
+  const movements = syncedMovements || fastMovements;
+  const isMovementsLoading = !syncedMovements && isFastLoading;
+  
+  const mutateMovements = (data, options) => {
+      mutateFastMovements(data, options);
+      mutateSyncedMovements(data, options);
+  };
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMovement, setSelectedMovement] = useState(null);
@@ -42,6 +54,7 @@ export default function AssetMovements() {
   const [branchSearch, setBranchSearch] = useState('');
   const [fromBranchSearch, setFromBranchSearch] = useState('');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -51,6 +64,7 @@ export default function AssetMovements() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
   const [isReceiveModalOpen, setIsReceiveModalOpen] = useState(false);
+  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
 
   // Forms state
   const [isBorrowingMode, setIsBorrowingMode] = useState(false);
@@ -61,7 +75,7 @@ export default function AssetMovements() {
     asset_ids: [],
     purpose: 'Operational',
     purpose_detail: '',
-    from_location: 'Head Office',
+    from_location: user?.branch && user.branch !== 'ALL' && !Array.isArray(user.branch) ? user.branch : 'Head Office',
     to_location: '',
     onsite_detail: '',
     sender_name: '',
@@ -287,6 +301,48 @@ export default function AssetMovements() {
     }
   };
 
+  const handleCancelMovement = async (tracking_code) => {
+    const { value: formValues } = await Swal.fire({
+      title: 'Batalkan Pengiriman?',
+      html: `
+        <div class="text-left text-sm text-slate-600 mb-4">Pengiriman ini akan dibatalkan dan aset akan kembali tersedia.</div>
+        <input id="swal-cancel-name" class="swal2-input !w-full !mx-0 !text-sm" placeholder="Nama Anda (Yang Membatalkan)" required>
+        <textarea id="swal-cancel-reason" class="swal2-textarea !w-full !mx-0 !text-sm" placeholder="Alasan Pembatalan..." required></textarea>
+      `,
+      showCancelButton: true,
+      confirmButtonColor: '#e11d48',
+      cancelButtonColor: '#94a3b8',
+      confirmButtonText: 'Ya, Batalkan!',
+      cancelButtonText: 'Kembali',
+      focusConfirm: false,
+      preConfirm: () => {
+        const name = document.getElementById('swal-cancel-name').value;
+        const reason = document.getElementById('swal-cancel-reason').value;
+        if (!name || !reason) {
+          Swal.showValidationMessage('Nama dan alasan wajib diisi!');
+        }
+        return { name, reason };
+      }
+    });
+
+    if (formValues) {
+      try {
+        Swal.fire({ title: 'Memproses...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        await api.post('/movements/cancel', {
+          tracking_code: tracking_code,
+          canceller_name: formValues.name,
+          reason: formValues.reason
+        });
+        Swal.fire('Dibatalkan!', 'Pengiriman berhasil dibatalkan.', 'success');
+        setIsDetailModalOpen(false);
+        mutateMovements();
+        mutateAssets();
+      } catch (err) {
+        Swal.fire('Error', err.response?.data?.detail || 'Gagal membatalkan pengiriman', 'error');
+      }
+    }
+  };
+
   const handleExportCSV = () => {
     const headers = ['Tracking Code', 'Asset Name', 'Asset ID', 'From', 'To', 'Purpose', 'Status', 'Expected Return'];
     const rows = filteredMovements.map(m => [m.tracking_code, m.assets?.name || 'Unknown', m.asset_id, m.from_location, m.to_location, m.purpose, m.status, m.expected_return_date || '-']);
@@ -364,72 +420,107 @@ export default function AssetMovements() {
     ));
   };
 
+  const inTransitCount = filteredMovements.filter(m => m.status === 'In Transit').length;
+  const receivedCount = filteredMovements.filter(m => m.status === 'Received').length;
+
   return (
-    <div className="h-full flex flex-col animate-[fadeIn_0.4s_ease-out] space-y-4">
-      {/* Unified Action and Filter Bar */}
-      <div className="flex flex-col 2xl:flex-row justify-between items-start 2xl:items-center w-full gap-4 mb-6 shrink-0 z-20">
+    <div className="absolute inset-0 flex flex-col p-4 sm:p-6 lg:p-8 animate-[fadeIn_0.4s_ease-out]">
+      <div className="flex flex-col gap-4 mb-6 shrink-0 z-20">
         
-        {/* LEFT/CENTER: Filter Pill */}
-        <div className="flex items-center flex-1 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm relative z-50 min-w-0 w-full 2xl:w-auto">
-          <div className="flex items-center w-full gap-2 overflow-x-auto custom-scrollbar pb-1 sm:pb-0">
+        {/* 1st Row: Main Actions & Search */}
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center w-full gap-3 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm relative z-50">
+          <div className="flex items-center gap-2 w-full xl:w-auto overflow-x-auto custom-scrollbar pb-1 xl:pb-0 shrink-0">
+            <button 
+              onClick={() => mutateMovements()} 
+              title={t('refreshData') || 'Refresh Data'}
+              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all shrink-0"
+            >
+              <svg className={`w-4 h-4 ${isMovementsLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+            </button>
             
-            {/* STATUS TABS */}
-            <div className="bg-slate-100 p-1 rounded-xl flex gap-1 shadow-inner h-9 shrink-0">
-              {['All', 'In Transit', 'Received', 'Completed'].map(status => (
-                <button key={status} onClick={() => setFilterStatus(status)} className={`px-4 h-full rounded-lg text-xs font-bold transition-all ${filterStatus === status ? 'bg-white text-[#286086] shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}>
-                  {status}
-                </button>
-              ))}
+            <button 
+              onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-sm shrink-0 border ${isFiltersOpen ? 'bg-[#286086] text-white border-[#286086]' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+              title="Toggle Filters"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+            </button>
+
+            {/* KPI Pills */}
+            <div className="hidden sm:flex items-center gap-2 px-3 border-l border-slate-200/60 h-8 ml-2 shrink-0">
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2 py-1 rounded-md shadow-sm whitespace-nowrap">
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">{t('total') || 'Total'}</span>
+                <span className="text-[10px] font-extrabold text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-100">{filteredMovements.length}</span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-100 px-2 py-1 rounded-md shadow-sm whitespace-nowrap">
+                <span className="text-[9px] font-black text-amber-600 uppercase tracking-wider">In Transit</span>
+                <span className="text-[10px] font-extrabold text-amber-700 bg-white px-1.5 py-0.5 rounded border border-amber-50">{inTransitCount}</span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-md shadow-sm whitespace-nowrap">
+                <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wider">Received</span>
+                <span className="text-[10px] font-extrabold text-emerald-700 bg-white px-1.5 py-0.5 rounded border border-emerald-50">{receivedCount}</span>
+              </div>
             </div>
+          </div>
 
-            <div className="hidden sm:block w-px h-5 bg-slate-200 shrink-0 mx-1"></div>
-
-            {/* DATE FILTER */}
-            <div className="flex items-center gap-1.5 shrink-0 px-2">
-              <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-              <Flatpickr 
-                value={dateRange.start} 
-                onChange={([date]) => setDateRange({...dateRange, start: date ? date.toLocaleDateString('en-CA') : ''})} 
-                options={{ dateFormat: "Y-m-d" }}
-                className="bg-transparent border-none px-1 text-xs outline-none text-slate-600 font-bold cursor-pointer w-24 placeholder-slate-400" 
-                placeholder="Start Date"
+          <div className="flex items-center gap-2 w-full xl:w-auto shrink-0 justify-between xl:justify-end">
+            <div className="relative flex-1 xl:w-64 min-w-[150px] shrink-0 bg-slate-50 p-1 rounded-xl border border-slate-100 shadow-inner flex items-center h-10">
+              <svg className="w-4 h-4 absolute left-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              <input 
+                type="text" 
+                placeholder={t('searchTracking') || 'Search ID...'}
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-10 py-1 bg-transparent border-none outline-none text-xs font-bold text-slate-700 h-full"
               />
-              <span className="text-xs text-slate-300 font-black">-</span>
-              <Flatpickr 
-                value={dateRange.end} 
-                onChange={([date]) => setDateRange({...dateRange, end: date ? date.toLocaleDateString('en-CA') : ''})} 
-                options={{ dateFormat: "Y-m-d" }}
-                className="bg-transparent border-none px-1 text-xs outline-none text-slate-600 font-bold cursor-pointer w-24 placeholder-slate-400" 
-                placeholder="End Date"
-              />
-              {(dateRange.start || dateRange.end) && (
-                <button onClick={() => setDateRange({start: '', end: ''})} className="w-5 h-5 rounded-md bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-600 flex items-center justify-center transition-colors ml-1" title="Clear Dates">
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              )}
+              <button 
+                onClick={() => setIsQRScannerOpen(true)}
+                title="Scan QR Code"
+                className="absolute right-2 p-1.5 bg-[#286086]/10 text-[#286086] hover:bg-[#286086] hover:text-white rounded-lg transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-1.5m0 0h-3m-1.3 0H4m8 4v-1m-8-4H4m0 0H2.5M4 4h1.5M4 4h3m8-3h-2m-6 0H4m8 4V4m0 4v3m0 4v-1m0 0v-3" /><path strokeLinecap="round" strokeLinejoin="round" d="M4 4h4v4H4zM16 4h4v4h-4zM4 16h4v4H4z" /></svg>
+              </button>
             </div>
+            
+            {canCreate && (
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => { setIsBorrowingMode(false); setIsDispatchModalOpen(true); }}
+                  className="bg-[#286086] hover:bg-[#1a4666] text-white px-4 h-10 rounded-xl font-bold text-[11px] shadow-lg shadow-blue-900/20 transition-all flex items-center justify-center gap-2 shrink-0 whitespace-nowrap"
+                >
+                  <span className="text-sm leading-none">+</span> {t('permanentMutation')}
+                </button>
+                <button 
+                  onClick={() => { setIsBorrowingMode(true); setIsDispatchModalOpen(true); }}
+                  className="bg-amber-500 hover:bg-amber-600 text-white px-4 h-10 rounded-xl font-bold text-[11px] shadow-lg shadow-amber-900/20 transition-all flex items-center justify-center gap-2 shrink-0 whitespace-nowrap"
+                >
+                  <span className="text-sm leading-none">+</span> {t('loanAsset')}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
 
-            <div className="hidden sm:block w-px h-5 bg-slate-200 shrink-0 mx-1"></div>
-
-            {/* REGION AND BRANCH FILTERS */}
-            <div className="flex items-center shrink-0">
-              <svg className="w-4 h-4 text-[#286086] ml-2 mr-1 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+        {/* 2nd Row: Expandable Filters */}
+        {isFiltersOpen ? (
+          <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center w-full gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm relative z-20 animate-[fadeIn_0.2s_ease-out]">
+            <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
               
               {openDropdown && (
                 <div className="fixed inset-0 z-40" onClick={() => setOpenDropdown(null)}></div>
               )}
               
               {/* Region Dropdown */}
-              <div className="relative h-8 flex items-center shrink-0">
+              <div className="relative h-9 bg-slate-50 border border-slate-100 rounded-xl px-3 flex items-center shrink-0">
                 <button 
                   onClick={() => setOpenDropdown(openDropdown === 'region' ? null : 'region')}
-                  className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold px-2 outline-none cursor-pointer flex items-center gap-1.5 transition-colors relative z-50"
+                  className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold outline-none cursor-pointer flex items-center gap-1.5 transition-colors relative z-50"
                 >
-                  <span className="truncate max-w-[100px]">{filterRegion === 'All Regions' || filterRegion === 'All' ? t('allRegions') || 'All Regions' : filterRegion}</span>
+                  <span className="truncate max-w-[120px]">{filterRegion === 'All Regions' || filterRegion === 'All' ? t('allRegions') || 'All Regions' : filterRegion}</span>
                   <svg className={`w-3 h-3 transition-transform ${openDropdown === 'region' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                 </button>
                 {openDropdown === 'region' && (
-                  <div className="absolute top-full left-0 mt-3 w-44 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.2s_ease-out] flex flex-col">
+                  <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.1s_ease-out] flex flex-col">
                     <div className="p-2 border-b border-slate-100 bg-slate-50/80 shrink-0">
                       <input 
                         type="text" 
@@ -441,7 +532,7 @@ export default function AssetMovements() {
                     </div>
                     <div className="max-h-56 overflow-y-auto custom-scrollbar py-1">
                       <div 
-                        onClick={() => { setFilterRegion('All Regions'); setFilterBranch('All Branches'); setOpenDropdown(null); setRegionSearch(''); }}
+                        onClick={() => { setFilterRegion('All Regions'); setFilterBranch('All Branches'); setOpenDropdown(null); setRegionSearch(''); setCurrentPage(1); }}
                         className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterRegion === 'All Regions' || filterRegion === 'All' ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
                       >
                         {t('allRegions') || 'All Regions'}
@@ -449,8 +540,9 @@ export default function AssetMovements() {
                       {['Region 1', 'Region 2', 'Region 3', 'Region 4'].filter(r => r.toLowerCase().includes(regionSearch.toLowerCase())).map(r => (
                         <div 
                           key={r}
-                          onClick={() => { setFilterRegion(r); setFilterBranch('All Branches'); setOpenDropdown(null); setRegionSearch(''); }}
-                          className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterRegion === r ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
+                          onClick={() => { setFilterRegion(r); setFilterBranch('All Branches'); setOpenDropdown(null); setRegionSearch(''); setCurrentPage(1); }}
+                          className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors truncate ${filterRegion === r ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
+                          title={r}
                         >
                           {r}
                         </div>
@@ -460,19 +552,17 @@ export default function AssetMovements() {
                 )}
               </div>
 
-              <div className="w-px h-4 bg-slate-200 shrink-0 mx-1"></div>
-              
               {/* Branch Dropdown */}
-              <div className="relative h-8 flex items-center shrink-0">
+              <div className="relative h-9 bg-slate-50 border border-slate-100 rounded-xl px-3 flex items-center shrink-0">
                 <button 
                   onClick={() => setOpenDropdown(openDropdown === 'branch' ? null : 'branch')}
-                  className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold px-3 outline-none cursor-pointer flex items-center gap-2 transition-colors relative z-50"
+                  className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold outline-none cursor-pointer flex items-center gap-1.5 transition-colors relative z-50"
                 >
-                  <span className="truncate max-w-[150px]">{filterBranch === 'All Branches' || filterBranch === 'All' ? t('allBranches') || 'All Branches' : filterBranch}</span>
+                  <span className="truncate max-w-[120px]">{filterBranch === 'All Branches' || filterBranch === 'All' ? t('allBranches') || 'All Branches' : filterBranch}</span>
                   <svg className={`w-3 h-3 transition-transform ${openDropdown === 'branch' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                 </button>
                 {openDropdown === 'branch' && (
-                  <div className="absolute top-full left-0 mt-3 w-56 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.2s_ease-out] flex flex-col">
+                  <div className="absolute top-full left-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.1s_ease-out] flex flex-col">
                     <div className="p-2 border-b border-slate-100 bg-slate-50/80 shrink-0">
                       <input 
                         type="text" 
@@ -484,7 +574,7 @@ export default function AssetMovements() {
                     </div>
                     <div className="max-h-56 overflow-y-auto custom-scrollbar py-1">
                       <div 
-                        onClick={() => { setFilterBranch('All Branches'); setOpenDropdown(null); setBranchSearch(''); }}
+                        onClick={() => { setFilterBranch('All Branches'); setOpenDropdown(null); setBranchSearch(''); setCurrentPage(1); }}
                         className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterBranch === 'All Branches' || filterBranch === 'All' ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
                       >
                         {t('allBranches') || 'All Branches'}
@@ -492,7 +582,7 @@ export default function AssetMovements() {
                       {mapBranches.filter(b => filterRegion === 'All Regions' || filterRegion === 'All' || b.region === filterRegion).filter(b => b.name.toLowerCase().includes(branchSearch.toLowerCase())).map(b => (
                         <div 
                           key={b.name}
-                          onClick={() => { setFilterBranch(b.name); setOpenDropdown(null); setBranchSearch(''); }}
+                          onClick={() => { setFilterBranch(b.name); setOpenDropdown(null); setBranchSearch(''); setCurrentPage(1); }}
                           className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors truncate ${filterBranch === b.name ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
                           title={b.name}
                         >
@@ -503,51 +593,85 @@ export default function AssetMovements() {
                   </div>
                 )}
               </div>
+
+              {/* Status Dropdown */}
+              <div className="relative h-9 bg-slate-50 border border-slate-100 rounded-xl px-3 flex items-center shrink-0">
+                <button 
+                  onClick={() => setOpenDropdown(openDropdown === 'status' ? null : 'status')}
+                  className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold outline-none cursor-pointer flex items-center gap-1.5 transition-colors relative z-50"
+                >
+                  <span className="truncate max-w-[100px]">{filterStatus === 'All' ? 'All Status' : filterStatus}</span>
+                  <svg className={`w-3 h-3 transition-transform ${openDropdown === 'status' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                {openDropdown === 'status' && (
+                  <div className="absolute top-full left-0 mt-2 w-40 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.1s_ease-out]">
+                    <div className="py-1">
+                      {['All', 'In Transit', 'Received', 'Completed'].map(st => (
+                        <div 
+                          key={st}
+                          onClick={() => { setFilterStatus(st); setOpenDropdown(null); setCurrentPage(1); }}
+                          className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterStatus === st ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
+                        >
+                          {st === 'All' ? 'All Status' : st}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Date Filters */}
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-3 h-9 rounded-xl shrink-0">
+                 <Flatpickr 
+                   value={dateRange.start} 
+                   onChange={([date]) => setDateRange({...dateRange, start: date ? date.toLocaleDateString('en-CA') : ''})} 
+                   options={{ dateFormat: "Y-m-d" }}
+                   className="text-xs font-bold text-slate-600 outline-none bg-transparent cursor-pointer w-20 placeholder-slate-400" 
+                   placeholder="Start Date"
+                 />
+                 <span className="text-slate-300 font-black">-</span>
+                 <Flatpickr 
+                   value={dateRange.end} 
+                   onChange={([date]) => setDateRange({...dateRange, end: date ? date.toLocaleDateString('en-CA') : ''})} 
+                   options={{ dateFormat: "Y-m-d" }}
+                   className="text-xs font-bold text-slate-600 outline-none bg-transparent cursor-pointer w-20 placeholder-slate-400" 
+                   placeholder="End Date"
+                 />
+              </div>
+
             </div>
+            
+            <div className="flex items-center gap-2 ml-auto shrink-0">
+              {(filterRegion !== 'All Regions' && filterRegion !== 'All' || filterBranch !== 'All Branches' && filterBranch !== 'All' || filterStatus !== 'All' || dateRange.start !== '' || dateRange.end !== '' || searchTerm !== '') && (
+                <button 
+                  onClick={() => {
+                    setFilterRegion('All Regions');
+                    setFilterBranch('All Branches');
+                    setFilterStatus('All');
+                    setSearchTerm('');
+                    setDateRange({start: '', end: ''});
+                    setCurrentPage(1);
+                  }}
+                  title="Reset Filters"
+                  className="bg-rose-50 border border-rose-100 hover:bg-rose-100 text-rose-600 px-3 py-1.5 h-9 rounded-xl flex items-center justify-center shadow-sm transition-all font-bold text-[11px] gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  Reset
+                </button>
+              )}
 
-            <div className="hidden sm:block w-px h-5 bg-slate-200 shrink-0 mx-1"></div>
-
-            {/* SEARCH BAR */}
-            <div className="flex-1 min-w-[120px] bg-slate-50 rounded-xl px-3 h-8 flex items-center border border-slate-100 group focus-within:ring-2 focus-within:ring-blue-500/10 focus-within:border-blue-500/30 transition-all relative">
-              <svg className="w-4 h-4 text-slate-400 group-focus-within:text-[#286086]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-              <input 
-                type="text" 
-                placeholder={t('searchTracking') || 'Search ID...'}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-transparent border-none outline-none pl-2 text-xs text-slate-700 placeholder-slate-400 font-bold min-w-[100px]" 
-              />
+              {canExport && (
+                <button 
+                  onClick={handleExportCSV} 
+                  title="Export CSV"
+                  className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-600 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm transition-all"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                </button>
+              )}
             </div>
-
           </div>
-        </div>
-
-        {/* RIGHT: ACTIONS */}
-        <div className="flex items-center justify-center gap-2 shrink-0 w-full xl:w-auto">
-          <button 
-            onClick={() => mutateMovements()} 
-            title={t('refreshData') || 'Refresh Data'}
-            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm transition-all shrink-0"
-          >
-            <svg className={`w-4 h-4 ${isMovementsLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-          </button>
-          {canExport && (
-            <button onClick={handleExportCSV} className="bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 text-emerald-600 px-3 h-9 rounded-xl font-bold text-[11px] shadow-sm transition-all flex items-center gap-1.5 group">
-              <svg className="w-3 h-3 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-              Export CSV
-            </button>
-          )}
-          {canCreate && (
-            <div className="flex items-center gap-2">
-              <button onClick={() => { setIsBorrowingMode(false); setIsDispatchModalOpen(true); }} className="bg-rose-500 hover:bg-rose-600 text-white px-3 h-9 rounded-xl font-bold text-[11px] shadow-lg shadow-rose-900/20 transition-all flex items-center gap-1.5">
-                <span className="text-sm leading-none">+</span> {t('permanentMutation')}
-              </button>
-              <button onClick={() => { setIsBorrowingMode(true); setIsDispatchModalOpen(true); }} className="bg-[#286086] hover:bg-[#1a4666] text-white px-3 h-9 rounded-xl font-bold text-[11px] shadow-lg shadow-blue-900/20 transition-all flex items-center gap-1.5">
-                <span className="text-sm leading-none">+</span> {t('loanAsset')}
-              </button>
-            </div>
-          )}
-        </div>
+        ) : null}
       </div>
 
       <div className="flex-1 bg-white/70 backdrop-blur-xl border border-white/40 shadow-xl shadow-slate-200/40 rounded-3xl flex flex-col overflow-hidden relative">
@@ -617,12 +741,15 @@ export default function AssetMovements() {
               ))}
               {paginatedMovements.length === 0 && (
                 <tr>
-                  <td colSpan="5" className="p-12 text-center">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <div className="w-14 h-14 bg-slate-50 border-2 border-dashed border-slate-200 rounded-full flex items-center justify-center text-slate-400 mb-1">
-                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                  <td colSpan="5" className="text-center py-16 px-4">
+                    <div className="flex flex-col items-center justify-center space-y-3">
+                      <div className="w-16 h-16 bg-slate-50 border border-slate-100 rounded-full flex items-center justify-center shadow-inner">
+                        <svg className="w-8 h-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
                       </div>
-                      <div className="text-sm font-bold text-slate-500">{t('noActiveMovements') || 'No active movements found'}</div>
+                      <div>
+                         <p className="text-sm font-bold text-slate-600">{t('noActiveMovements')}</p>
+                         <p className="text-[11px] text-slate-400 mt-0.5">{t('noActiveMovementsDesc')}</p>
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -815,15 +942,23 @@ export default function AssetMovements() {
                     ))}
                   </div>
                   
-                  {/* Mark Received Button at bottom if in transit */}
-                  {selectedMovement.status === 'In Transit' && canReceive && (
-                    <div className="pt-4 border-t border-slate-100 mt-4 shrink-0">
+                  {/* Action Buttons at bottom */}
+                  <div className="pt-4 border-t border-slate-100 mt-4 shrink-0 flex flex-col gap-2">
+                    {/* Mark Received Button if in transit */}
+                    {selectedMovement.status === 'In Transit' && canReceive && (
                       <button onClick={() => setIsReceiveModalOpen(true)} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all text-xs uppercase tracking-widest">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                         {t('markReceived')}
                       </button>
-                    </div>
-                  )}
+                    )}
+                    {/* Cancel Button if in transit or pending approval */}
+                    {['In Transit', 'Pending Approval'].includes(selectedMovement.status) && canCreate && (
+                      <button onClick={() => handleCancelMovement(selectedMovement.tracking_code)} className="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all text-xs uppercase tracking-widest">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        Cancel Delivery
+                      </button>
+                    )}
+                  </div>
                 </div>
 
               </div>
@@ -1078,6 +1213,15 @@ export default function AssetMovements() {
           </div>
         </form>
       </BaseModal>
+      {/* QR Scanner Modal */}
+      <QRScannerModal 
+        isOpen={isQRScannerOpen}
+        onClose={() => setIsQRScannerOpen(false)}
+        onScanSuccess={(decodedText) => {
+          setSearchTerm(decodedText);
+          setIsFiltersOpen(false); // Close filters if open
+        }}
+      />
     </div>
   );
 }

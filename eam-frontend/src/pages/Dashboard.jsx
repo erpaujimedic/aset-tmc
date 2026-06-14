@@ -8,6 +8,7 @@ import api from '../services/api';
 import useI18nStore from '../store/i18nStore';
 import useSWR from 'swr';
 import ShimmerLoader from '../components/ui/ShimmerLoader';
+import Swal from 'sweetalert2';
 
 // Fix Leaflet icon issue
 delete L.Icon.Default.prototype._getIconUrl;
@@ -69,6 +70,8 @@ export default function Dashboard() {
   const assetsEndpoint = apiBranchParam ? `/assets?branch=${encodeURIComponent(apiBranchParam)}` : '/assets';
   const { data: allAssets = [] } = useSWR(assetsEndpoint, fetchAssets);
 
+  const [hasShownTicketAlert, setHasShownTicketAlert] = useState(false);
+
   useEffect(() => {
     if (!isCalLoading && allCalibrations.length > 0) {
       const expired = allCalibrations.filter(c => c.status === 'Expired');
@@ -76,6 +79,30 @@ export default function Dashboard() {
       setCalibrationAlerts([...expired, ...soon]);
     }
   }, [allCalibrations, isCalLoading]);
+
+  // SMART ALERT FOR TICKETS
+  useEffect(() => {
+    if (!isStatsLoading && stats?.ticketStats && !hasShownTicketAlert) {
+      const openCount = stats.ticketStats.Open || 0;
+      const inProgressCount = stats.ticketStats["In Progress"] || 0;
+      
+      if (openCount > 0 || inProgressCount > 0) {
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'warning',
+          title: `Ada ${openCount} tiket Open & ${inProgressCount} In Progress.`,
+          showConfirmButton: false,
+          timer: 6000,
+          timerProgressBar: true,
+          background: '#fff',
+          iconColor: '#e11d48',
+          customClass: { title: 'text-sm font-bold text-slate-700' }
+        });
+        setHasShownTicketAlert(true);
+      }
+    }
+  }, [isStatsLoading, stats, hasShownTicketAlert]);
 
   // DYNAMIC COMPUTATIONS (Optimized with useMemo)
   const branchMap = React.useMemo(() => {
@@ -221,60 +248,21 @@ export default function Dashboard() {
     <div className="space-y-6 max-w-[1600px] mx-auto animate-[fadeIn_0.3s_ease-out]">
       
       {/* UNIFIED STICKY TOP BAR & KPI (Always visible on Overview, Top Bar always visible on Map) */}
-      <div className="sticky top-0 z-40 bg-slate-50/95 backdrop-blur-md pt-4 pb-4 border-b border-slate-200">
-        <div className="flex flex-col xl:flex-row justify-between items-center gap-4">
-          {/* TABS */}
-          <div className="bg-slate-200/60 p-1 rounded-xl flex gap-1 border border-slate-200/50 shadow-inner">
-            <button onClick={() => setActiveTab('overview')} className={`px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'overview' ? 'bg-white text-[#286086] shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}>
-              Overview
-            </button>
-            <button onClick={() => setActiveTab('map')} className={`px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'map' ? 'bg-white text-[#286086] shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              Geographic Map
-            </button>
-          </div>
-
-          <div className="flex flex-col md:flex-row items-center gap-3 w-full xl:w-auto justify-end mt-4 xl:mt-0">
-            {user?.role === 'Sandbox Admin' && (
-              <button 
-                onClick={() => {
-                  Swal.fire({
-                    title: 'Reset Data Sandbox?',
-                    text: 'Semua Aset, Tiket, dan Pergerakan di akun dummy akan dihapus permanen. Lanjutkan?',
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#EC363A',
-                    cancelButtonColor: '#94a3b8',
-                    confirmButtonText: 'Ya, Bersihkan!',
-                    cancelButtonText: 'Batal'
-                  }).then(async (result) => {
-                    if (result.isConfirmed) {
-                      try {
-                        Swal.fire({ title: 'Membersihkan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                        await api.post('/dashboard/reset-sandbox');
-                        await mutateStats();
-                        Swal.fire('Berhasil!', 'Data sandbox telah di-reset.', 'success');
-                      } catch (err) {
-                        Swal.fire('Gagal', 'Terjadi kesalahan saat mereset data', 'error');
-                      }
-                    }
-                  });
-                }} 
-                className="bg-red-50 hover:bg-red-100 text-red-600 font-bold px-4 h-11 rounded-xl flex items-center justify-center border border-red-200 shadow-sm transition-all shrink-0"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                Reset Sandbox Data
-              </button>
-            )}
+      <div className="sticky top-0 z-40 bg-slate-50/95 backdrop-blur-md pt-4 pb-4 mb-6">
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center w-full gap-3 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm relative z-50">
+          {/* LEFT: Primary Navigation & Filters */}
+          <div className="flex items-center gap-2 relative z-50 flex-1 min-w-0 flex-wrap xl:flex-nowrap shrink-0">
+            {/* Refresh Button */}
             <button 
               onClick={() => mutateStats()} 
               title={t('refreshData') || 'Refresh Data'}
-              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 w-11 h-11 rounded-xl flex items-center justify-center shadow-sm transition-all shrink-0 hidden md:flex"
+              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all shrink-0"
             >
               <svg className={`w-4 h-4 ${isStatsLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
             </button>
+
             {/* Custom Filters */}
-            <div className="flex items-center bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm relative z-50 w-full sm:w-auto justify-center">
+            <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200 shadow-sm relative z-50 shrink-0 h-10">
               <svg className="w-4 h-4 text-[#286086] ml-2 mr-1 shrink-0 hidden sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
               
               {openDropdown && (
@@ -321,7 +309,7 @@ export default function Dashboard() {
                 )}
               </div>
 
-              <div className="w-px h-5 bg-slate-200 shrink-0 mx-2"></div>
+              <div className="w-px h-5 bg-slate-200 shrink-0 mx-1"></div>
               
               <div className="relative h-8 flex items-center shrink-0">
                 <button 
@@ -365,13 +353,61 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="flex gap-2 w-full sm:w-auto justify-center">
-              <button onClick={() => navigate('/deliveries')} className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 px-4 h-11 rounded-xl font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2 flex-1 sm:flex-none">
+            <div className="w-px h-6 bg-slate-200 mx-1 shrink-0 hidden sm:block"></div>
+
+            {/* TABS */}
+            <div className="bg-slate-200/60 p-1 rounded-xl flex gap-1 border border-slate-200/50 shadow-inner h-10 items-center shrink-0">
+              <button onClick={() => setActiveTab('overview')} className={`px-4 py-1.5 h-full rounded-lg text-[11px] font-bold transition-all whitespace-nowrap ${activeTab === 'overview' ? 'bg-white text-[#286086] shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}>
+                Overview
+              </button>
+              <button onClick={() => setActiveTab('map')} className={`px-4 py-1.5 h-full rounded-lg text-[11px] font-bold transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'map' ? 'bg-white text-[#286086] shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                Geographic Map
+              </button>
+            </div>
+          </div>
+
+          {/* RIGHT: Actions */}
+          <div className="flex flex-col md:flex-row items-center gap-3 w-full xl:w-auto shrink-0 justify-between xl:justify-end">
+            {user?.role === 'Sandbox Admin' && (
+              <button 
+                onClick={() => {
+                  Swal.fire({
+                    title: 'Reset Data Sandbox?',
+                    text: 'Semua Aset, Tiket, dan Pergerakan di akun dummy akan dihapus permanen. Lanjutkan?',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#EC363A',
+                    cancelButtonColor: '#94a3b8',
+                    confirmButtonText: 'Ya, Bersihkan!',
+                    cancelButtonText: 'Batal'
+                  }).then(async (result) => {
+                    if (result.isConfirmed) {
+                      try {
+                        Swal.fire({ title: 'Membersihkan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                        await api.post('/dashboard/reset-sandbox');
+                        await mutateStats();
+                        Swal.fire('Berhasil!', 'Data sandbox telah di-reset.', 'success');
+                      } catch (err) {
+                        Swal.fire('Gagal', 'Terjadi kesalahan saat mereset data', 'error');
+                      }
+                    }
+                  });
+                }} 
+                className="bg-red-50 hover:bg-red-100 text-red-600 font-bold px-4 h-10 rounded-xl flex items-center justify-center border border-red-200 shadow-sm transition-all shrink-0 text-[11px]"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                Reset Sandbox
+              </button>
+            )}
+
+            <div className="flex gap-2 w-full sm:w-auto justify-center shrink-0">
+              <button onClick={() => navigate('/deliveries')} className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 px-4 h-10 rounded-xl font-bold text-[11px] shadow-sm transition-all flex items-center justify-center gap-2 flex-1 sm:flex-none">
                 <svg className="w-4 h-4 text-[#286086]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
                 {t('dispatchAsset')}
               </button>
-              <button onClick={() => navigate('/assets', { state: { action: 'new' } })} className="bg-[#286086] hover:bg-[#1a4666] text-white px-4 h-11 rounded-xl font-bold text-sm shadow-lg shadow-blue-900/20 transition-all flex items-center justify-center gap-2 flex-1 sm:flex-none">
-                <span className="text-lg leading-none">+</span> {t('addNewAsset')}
+              <button onClick={() => navigate('/assets', { state: { action: 'new' } })} className="bg-[#286086] hover:bg-[#1a4666] text-white px-4 h-10 rounded-xl font-bold text-[11px] shadow-lg shadow-blue-900/20 transition-all flex items-center justify-center gap-2 flex-1 sm:flex-none whitespace-nowrap">
+                <span className="text-sm leading-none">+</span> {t('addNewAsset')}
               </button>
             </div>
           </div>

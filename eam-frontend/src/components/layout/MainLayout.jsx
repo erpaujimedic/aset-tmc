@@ -42,6 +42,7 @@ export default function MainLayout() {
   const [openMenus, setOpenMenus] = useState({});
 
   const [pendingApprovals, setPendingApprovals] = useState([]);
+  const [systemUsers, setSystemUsers] = useState([]);
   const [isLoadingPanel, setIsLoadingPanel] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
 
@@ -135,6 +136,54 @@ export default function MainLayout() {
       }).catch(console.error);
     }
   }, [user]);
+
+  // Global Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+
+      // Gunakan Alt + Shift untuk menghindari konflik dengan shortcut bawaan browser (misal Alt+D untuk Address Bar)
+      if (e.altKey && e.shiftKey) {
+        switch(e.code) {
+          case 'KeyD':
+            e.preventDefault();
+            setActivePanel(null);
+            navigate('/dashboard');
+            break;
+          case 'KeyA':
+            e.preventDefault();
+            setActivePanel(null);
+            navigate('/assets');
+            break;
+          case 'KeyB':
+            e.preventDefault();
+            setActivePanel(null);
+            navigate('/borrowing');
+            break;
+          case 'KeyL':
+            e.preventDefault();
+            setActivePanel(null);
+            navigate('/deliveries');
+            break;
+          case 'KeyC':
+            e.preventDefault();
+            setActivePanel(null);
+            navigate('/calibrations');
+            break;
+          case 'KeyU':
+            e.preventDefault();
+            setActivePanel(null);
+            navigate('/user-managements/users');
+            break;
+          default:
+            break;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [navigate]);
 
   // --- GUIDED TOUR LOGIC ---
   useEffect(() => {
@@ -272,12 +321,12 @@ export default function MainLayout() {
   const fetchSystemUsers = async () => {
     setIsLoadingPanel(true);
     try {
-      const res = await api.get('/auth/users');
+      const res = await api.get('/users');
       // Mix with chat presence: users who sent messages are "Recently Active"
       const activeNames = [...new Set(messages.map(m => m.sender_name))];
       const usersData = res.data.data.map(u => ({
         ...u,
-        isOnline: activeNames.includes(u.full_name) || u.full_name === displayName
+        isOnline: activeNames.includes(u.name || u.full_name) || (u.name || u.full_name) === displayName
       }));
       setSystemUsers(usersData);
     } catch(err) { console.error(err); }
@@ -332,12 +381,14 @@ export default function MainLayout() {
             { id: 'nav-deliveries', path: '/deliveries', label: t('logisticsTracking') || 'Logistik & Tracking', icon: <DeliveryIcon />, module: 'Deliveries & Tracking' },
             { id: 'nav-calibrations', path: '/calibrations', label: t('calibrationSchedules') || 'Calibration Schedules', icon: <CalibrationIcon />, module: 'Calibration Schedules' },
             { id: 'nav-ticketing', path: '/ticketing', label: t('ticketing') || 'Ticketing', icon: <TicketIcon />, module: 'Ticketing' },
-            { type: 'section', label: t('systemAdmin') || 'System Admin' },
+            { type: 'section', label: 'Settings' },
+            { id: 'nav-file-naming', path: '/settings/file-naming', label: 'File Naming Config', icon: <ShortcutsIcon />, module: 'Settings - File Naming Config' },
+            { id: 'nav-sla', path: '/settings/sla-settings', label: 'SLA Setting', icon: <ApprovalIcon />, module: 'Settings - SLA Setting' },
+            { id: 'nav-master-components', path: '/settings/master-components', label: 'Master Components', icon: <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>, module: 'Settings - File Naming Config' },
             { id: 'nav-users', path: '/user-managements', label: t('userManagements') || 'User Managements', icon: <UserMgmtIcon />, subItems: [
               { path: '/user-managements/roles', label: t('roles') || 'Roles', module: 'User Managements - Roles' },
               { path: '/user-managements/profile-configurations', label: t('profileConfigs') || 'Profile Configurations', module: 'User Managements - Profile Configurations' },
-              { path: '/user-managements/users', label: t('users') || 'Users', module: 'User Managements - Users' },
-              { path: '/user-managements/sla-settings', label: 'SLA Setting', module: 'User Managements - SLA Settings' }
+              { path: '/user-managements/users', label: t('users') || 'Users', module: 'User Managements - Users' }
             ]},
           ].map((item, index) => {
             if (item.type === 'section') return item;
@@ -445,10 +496,10 @@ export default function MainLayout() {
               ].map((btn) => {
                 const isActive = btn.id === 'chat' ? chatState !== 'closed' : activePanel === btn.id;
                 return (
-                  <button key={btn.id} id={`action-${btn.id}`} onClick={() => handleActionClick(btn.id)} title={btn.label} className={`w-[36px] h-[36px] rounded-md flex items-center justify-center border border-transparent transition-colors duration-200 relative group ${isActive ? 'bg-[#286086] text-white border-[#286086]' : `text-slate-500 bg-white border-slate-200 ${btn.color}`}`}>
+                  <button key={btn.id} id={`action-${btn.id}`} onClick={() => handleActionClick(btn.id)} title={btn.label} className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all duration-200 relative group shadow-sm ${isActive ? 'bg-[#286086] text-white border-[#286086]' : `bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:shadow ${btn.color}`}`}>
                     {btn.icon}
-                    {btn.id === 'approval' && btn.badge && <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-[9px] text-white flex items-center justify-center font-bold ring-2 ring-white animate-bounce">{pendingApprovals.length}</span>}
-                    {btn.id === 'chat' && unreadCount > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-500 text-[9px] text-white flex items-center justify-center font-bold ring-2 ring-white">{unreadCount}</span>}
+                    {btn.id === 'approval' && btn.badge && <span className="absolute -top-1.5 -right-1.5 w-[18px] h-[18px] rounded-full bg-rose-500 text-[10px] text-white flex items-center justify-center font-bold ring-2 ring-white animate-bounce shadow-sm">{pendingApprovals.length}</span>}
+                    {btn.id === 'chat' && unreadCount > 0 && <span className="absolute -top-1.5 -right-1.5 w-[18px] h-[18px] rounded-full bg-blue-500 text-[10px] text-white flex items-center justify-center font-bold ring-2 ring-white shadow-sm">{unreadCount}</span>}
                   </button>
                 );
               })}
@@ -457,13 +508,13 @@ export default function MainLayout() {
             <div className="hidden md:block w-[1px] h-5 bg-slate-200 mx-1.5"></div>
 
             <div className="relative" ref={profileRef}>
-              <button onClick={() => setProfileOpen(!profileOpen)} className={`flex items-center gap-2.5 pl-2 pr-3.5 py-1.5 rounded-md border transition-colors duration-200 bg-white ${profileOpen ? 'border-[#286086] bg-slate-50' : 'border-slate-200 hover:bg-slate-50'}`}>
-                <div className="w-8 h-8 rounded bg-[#F8F9FA] border border-slate-200 flex items-center justify-center text-slate-500 font-medium text-xs uppercase">{initialName}</div>
-                <div className="text-left hidden sm:flex flex-col max-w-[120px]">
-                  <span className="text-xs font-semibold text-slate-700 truncate leading-tight">{displayName}</span>
-                  <span className="text-[10px] text-slate-500 truncate mt-0.5">{displayRole}</span>
+              <button onClick={() => setProfileOpen(!profileOpen)} className={`flex items-center gap-3 pl-2 pr-4 py-1.5 rounded-xl border transition-all duration-200 shadow-sm ${profileOpen ? 'border-[#286086] bg-[#286086]/5 ring-2 ring-[#286086]/10' : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow hover:bg-slate-50'}`}>
+                <div className="w-[34px] h-[34px] rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 border border-slate-200 flex items-center justify-center text-slate-600 font-extrabold text-xs uppercase shadow-inner">{initialName}</div>
+                <div className="text-left hidden sm:flex flex-col max-w-[130px]">
+                  <span className="text-[13px] font-bold text-slate-700 truncate leading-tight">{displayName}</span>
+                  <span className="text-[10px] font-semibold text-slate-400 truncate mt-0.5 uppercase tracking-wider">{displayRole}</span>
                 </div>
-                <span className="text-[8px] text-slate-400 transition-transform duration-300 select-none">▼</span>
+                <span className={`text-[9px] text-slate-400 transition-transform duration-300 select-none ml-1 ${profileOpen ? 'rotate-180' : ''}`}>▼</span>
               </button>
 
               {profileOpen && (
@@ -606,17 +657,23 @@ export default function MainLayout() {
 
             {activePanel === 'shortcuts' && (
               <div className="space-y-2.5 animate-[slideUpFade_0.3s_ease-out]">
-                <p className="text-[10px] font-extrabold text-slate-400 tracking-wider uppercase mb-3">Quick Navigation</p>
+                <p className="text-[10px] font-extrabold text-slate-400 tracking-wider uppercase mb-3">Keyboard Shortcuts</p>
                 {[
-                  { label: 'Add New Asset', path: '/assets' },
-                  { label: 'Dispatch Deliveries', path: '/deliveries' },
-                  { label: 'Manage System Users', path: '/user-managements/users' },
-                  { label: 'View Dashboard Analytics', path: '/dashboard' }
+                  { label: 'Go to Dashboard', keys: ['Alt', 'Shift', 'D'] },
+                  { label: 'Manage Assets', keys: ['Alt', 'Shift', 'A'] },
+                  { label: 'Borrowing Asset', keys: ['Alt', 'Shift', 'B'] },
+                  { label: 'Logistics & Tracking', keys: ['Alt', 'Shift', 'L'] },
+                  { label: 'Calibration Schedules', keys: ['Alt', 'Shift', 'C'] },
+                  { label: 'User Managements', keys: ['Alt', 'Shift', 'U'] }
                 ].map((shortcut, i) => (
-                  <button key={i} onClick={() => { setActivePanel(null); navigate(shortcut.path); }} className="w-full text-left p-4 bg-slate-50 hover:bg-blue-50 border border-slate-200/60 hover:border-blue-300 rounded-xl transition-all font-bold text-xs text-slate-700 hover:text-blue-700 flex justify-between items-center group shadow-sm">
-                    <span>{shortcut.label}</span>
-                    <span className="w-6 h-6 rounded-md bg-white border border-slate-200 flex items-center justify-center text-slate-400 group-hover:text-blue-600 group-hover:border-blue-300 transition-colors">➔</span>
-                  </button>
+                  <div key={i} className="w-full text-left p-3.5 bg-slate-50 border border-slate-200/60 rounded-xl flex justify-between items-center group shadow-sm transition-all hover:bg-blue-50/50 hover:border-blue-200">
+                    <span className="font-bold text-xs text-slate-700">{shortcut.label}</span>
+                    <div className="flex gap-1.5">
+                      {shortcut.keys.map((k, j) => (
+                        <span key={j} className="min-w-[24px] px-1.5 h-6 rounded-md bg-white border border-slate-300 shadow-sm flex items-center justify-center text-[10px] font-black text-slate-500 uppercase font-mono">{k}</span>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
@@ -662,11 +719,11 @@ export default function MainLayout() {
                 {systemUsers.map((u, i) => (
                   <div key={i} className={`flex items-center gap-3 p-3.5 bg-white rounded-xl border border-slate-200 shadow-sm transition-all ${u.isOnline ? 'border-emerald-200 bg-emerald-50/30' : 'opacity-70 grayscale-[50%]'}`}>
                     <div className={`w-10 h-10 rounded-xl font-black text-sm flex items-center justify-center border shadow-inner ${u.isOnline ? 'bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-700 border-emerald-300' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
-                      {u.full_name?.substring(0,2).toUpperCase() || 'US'}
+                      {(u.name || u.full_name || 'US').substring(0,2).toUpperCase()}
                     </div>
                     <div className="flex flex-col flex-1">
                       <span className="text-xs font-bold text-slate-800 flex justify-between items-center">
-                        {u.full_name} {u.full_name === displayName && <span className="text-[9px] bg-[#30528A] text-white px-1.5 py-0.5 rounded uppercase tracking-widest">(You)</span>}
+                        {u.name || u.full_name || 'Unknown User'} {(u.name || u.full_name) === displayName && <span className="text-[9px] bg-[#30528A] text-white px-1.5 py-0.5 rounded uppercase tracking-widest">(You)</span>}
                       </span>
                       <span className={`text-[10px] font-bold flex items-center gap-1 mt-0.5 ${u.isOnline ? 'text-emerald-500' : 'text-slate-400'}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${u.isOnline ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-slate-300'}`}></span> 
@@ -697,6 +754,25 @@ export default function MainLayout() {
         {/* CENTER ACTION (Add Asset) */}
         <div className="w-[20%] flex justify-center">
           <NavLink to="/assets" state={{ action: 'new' }} onClick={() => setIsSidebarOpen(false)} className={({isActive}) => `absolute -top-6 flex flex-col items-center justify-center w-[60px] h-[60px] rounded-full border-[5px] border-[#F8F9FA] shadow-lg transition-all duration-300 bg-[#30528A] text-white hover:scale-105`}>
+            <NavLink
+              to="/settings/sla-settings"
+              className={({ isActive }) => `flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                isActive ? 'bg-[#286086] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+              }`}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+              <span className="font-semibold text-sm">SLA Setting</span>
+            </NavLink>
+
+            <NavLink
+              to="/settings/master-components"
+              className={({ isActive }) => `flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                isActive ? 'bg-[#286086] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+              }`}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+              <span className="font-semibold text-sm">Master Components</span>
+            </NavLink>
             <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
           </NavLink>
         </div>

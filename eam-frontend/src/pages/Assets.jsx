@@ -9,6 +9,7 @@ import useAuthStore from '../store/authStore';
 import useSWR from 'swr';
 import BaseModal from '../components/ui/BaseModal';
 import ShimmerLoader from '../components/ui/ShimmerLoader';
+import QRScannerModal from '../components/ui/QRScannerModal';
 
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -38,9 +39,12 @@ export default function Assets() {
   const [filterRegion, setFilterRegion] = useState('All Regions');
   const [filterBranch, setFilterBranch] = useState('All Branches');
   const [filterStatus, setFilterStatus] = useState('All Status');
+  const [filterDepartment, setFilterDepartment] = useState('All Departments');
   const [openDropdown, setOpenDropdown] = useState(null);
   const [regionSearch, setRegionSearch] = useState('');
   const [branchSearch, setBranchSearch] = useState('');
+  const [departmentSearch, setDepartmentSearch] = useState('');
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   // Pagination & Sorting
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
@@ -51,14 +55,19 @@ export default function Assets() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
   const [importFile, setImportFile] = useState(null);
   
   // Forms
   const [detailTab, setDetailTab] = useState('info'); // info, history, tickets
+  const [isComponentModalOpen, setIsComponentModalOpen] = useState(false);
+  const [componentForm, setComponentForm] = useState({ id: '', name: '', serial_number: '', status: 'Bagus', reason: '' });
+  const [componentMode, setComponentMode] = useState('add'); // 'add', 'swap'
   
   const [selectedAssetIds, setSelectedAssetIds] = useState([]);
   const [printAssets, setPrintAssets] = useState([]);
   const [assetComponents, setAssetComponents] = useState([]);
+  const [masterComponents, setMasterComponents] = useState([]);
   
   const getTranslatedAssetStatus = (status) => {
     switch(status) {
@@ -133,7 +142,9 @@ export default function Assets() {
         try {
           const res = await api.post('/tickets/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
           const baseUrl = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api$/, '') : 'http://127.0.0.1:8000';
-          setForm(prev => ({ ...prev, photo_url: `${baseUrl}${res.data.url}` }));
+          const returnedUrl = res.data.url;
+          const fullUrl = returnedUrl.startsWith('http') ? returnedUrl : `${baseUrl}${returnedUrl}`;
+          setForm(prev => ({ ...prev, photo_url: fullUrl }));
           Swal.close();
         } catch (err) {
           Swal.fire('Error', 'Gagal mengupload foto', 'error');
@@ -145,6 +156,7 @@ export default function Assets() {
   // SWR Fetchers
   const fetcher = url => api.get(url, { headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache', 'Expires': '0' } }).then(res => res.data.data || []);
   const branchFetcher = url => api.get(url, { headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache', 'Expires': '0' } }).then(res => res.data.branches || []);
+  const statsFetcher = url => api.get(url, { headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache', 'Expires': '0' } }).then(res => res.data || {});
 
   const isAllBranch = Array.isArray(user?.branch) ? user.branch.includes('ALL') : user?.branch === 'ALL';
   const isAdminSystem = ['Master Admin', 'Admin System'].includes(user?.role);
@@ -159,8 +171,15 @@ export default function Assets() {
     { revalidateOnFocus: false }
   );
 
+  const { data: rawStats = {} } = useSWR(
+    `/dashboard/stats?branch=${apiBranchParam}`,
+    statsFetcher,
+    { revalidateOnFocus: false, dedupingInterval: 60000 }
+  );
+
   // 2. Background Sync (Full Dataset)
   const [syncedAssets, setSyncedAssets] = React.useState(null);
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
   
   React.useEffect(() => {
     let isMounted = true;
@@ -182,10 +201,12 @@ export default function Assets() {
   const isAssetsLoading = !syncedAssets && isFastLoading;
 
   const mutateAssets = async () => {
+    setIsRefreshing(true);
     await mutateFastAssets();
     // Trigger background sync manually
     const fullData = await fetcher(`/assets?branch=${apiBranchParam}&status=${filterStatus === 'All Status' ? '' : filterStatus}`);
     setSyncedAssets(fullData);
+    setIsRefreshing(false);
   };
 
   const assets = React.useMemo(() => {
@@ -208,6 +229,10 @@ export default function Assets() {
 
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('module', 'asset');
+    formData.append('asset_code', form.id);
+    formData.append('asset_name', form.name);
+    formData.append('branch', form.branch);
     
     Swal.fire({
       title: 'Mengupload...',
@@ -222,7 +247,8 @@ export default function Assets() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       const baseUrl = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api$/, '') : 'http://127.0.0.1:8000';
-      const fullUrl = `${baseUrl}${res.data.url}`;
+      const returnedUrl = res.data.url;
+      const fullUrl = returnedUrl.startsWith('http') ? returnedUrl : `${baseUrl}${returnedUrl}`;
       
       setForm(prev => ({ ...prev, [fieldName]: fullUrl }));
       Swal.close();
@@ -284,9 +310,7 @@ export default function Assets() {
       
       const ticks = tickRes.data.data.filter(t => t.asset_id === asset.id);
       setAssetTickets(ticks || []);
-      
-      const compRes = await api.get(`/assets/${asset.id}/components`).catch(() => ({ data: { data: [] } }));
-      setAssetComponents(compRes.data.data || []);
+      setAssetComponents([]); // Reset components initially for speed
     } catch(err) {
       console.error(err);
     }
@@ -326,85 +350,176 @@ export default function Assets() {
     }
   };
 
-  const handleAddComponent = async () => {
-    const { value: formValues } = await Swal.fire({
-      title: 'Tambah Komponen',
-      html: `
-        <input id="comp-name" class="swal2-input" placeholder="Nama Komponen (Misal: Layar LCD)">
-        <input id="comp-sn" class="swal2-input" placeholder="Serial Number (Opsional)">
-        <select id="comp-status" class="swal2-select" style="display:flex; width: 75%; margin: 1em auto;">
-          <option value="Bagus">Bagus</option>
-          <option value="Rusak">Rusak</option>
-          <option value="Perbaikan">Perbaikan</option>
-        </select>
-      `,
-      focusConfirm: false,
+  // Lazy Load Components
+  useEffect(() => {
+    if (detailTab === 'components' && selectedAsset) {
+      api.get(`/assets/${selectedAsset.id}/components`)
+        .then(res => setAssetComponents(res.data.data || []))
+        .catch(() => setAssetComponents([]));
+    }
+  }, [detailTab, selectedAsset]);
+
+  // Load Master Components Dictionary once
+  useEffect(() => {
+    api.get('/master-components')
+      .then(res => setMasterComponents(res.data.data || []))
+      .catch(console.error);
+  }, []);
+
+  const handleBulkGenerateComponent = async () => {
+    if (!selectedAsset) return;
+    
+    // Check if category has a template mapped
+    try {
+      const templateCheck = await api.get(`/master-components/templates/${selectedAsset.category}`);
+      if (!templateCheck.data.data || templateCheck.data.data.length === 0) {
+        return Swal.fire('Tidak Ada Template', `Belum ada aturan template komponen untuk kategori "${selectedAsset.category}". Silakan atur di menu Master Components.`, 'info');
+      }
+
+      const result = await Swal.fire({
+        title: 'Auto-Generate Komponen?',
+        html: `Sistem akan menambahkan <b>${templateCheck.data.data.length} macam komponen</b> bawaan untuk kategori <b>${selectedAsset.category}</b> secara otomatis.`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#286086',
+        confirmButtonText: 'Ya, Generate Sekarang!'
+      });
+
+      if (result.isConfirmed) {
+        Swal.fire({ title: 'Memproses...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        const res = await api.post('/assets/bulk-components', {
+          asset_ids: [selectedAsset.id],
+          category_name: selectedAsset.category
+        });
+        
+        // Refresh components list
+        const comps = await api.get(`/assets/${selectedAsset.id}/components`);
+        setAssetComponents(comps.data.data || []);
+        
+        Swal.fire('Berhasil', `Berhasil menambahkan ${res.data.inserted} komponen.`, 'success');
+      }
+    } catch (err) {
+      console.error(err);
+      Swal.fire('Error', 'Gagal memproses auto-generate komponen.', 'error');
+    }
+  };
+
+  const handleBulkGenerateComponentMulti = async () => {
+    if (selectedAssetIds.length === 0) return;
+    
+    const result = await Swal.fire({
+      title: 'Auto-Generate Multi Asset?',
+      html: `Sistem akan mencoba menambahkan komponen bawaan untuk <b>${selectedAssetIds.length} aset</b> secara massal.<br><br><span class="text-xs text-slate-500">Aset yang kategorinya tidak memiliki aturan template akan dilewati.</span>`,
+      icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#286086',
-      preConfirm: () => {
-        const name = document.getElementById('comp-name').value;
-        const sn = document.getElementById('comp-sn').value;
-        const status = document.getElementById('comp-status').value;
-        if (!name) Swal.showValidationMessage('Nama komponen wajib diisi');
-        return { name, serial_number: sn, status };
-      }
+      confirmButtonText: 'Proses Semua!'
     });
 
-    if (formValues) {
+    if (result.isConfirmed) {
+      Swal.fire({ title: 'Memproses...', text: 'Tergantung jumlah aset, ini mungkin butuh waktu.', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
       try {
-        await api.post(`/assets/${selectedAsset.id}/components`, formValues);
-        const res = await api.get(`/assets/${selectedAsset.id}/components`);
-        setAssetComponents(res.data.data || []);
-        Swal.fire('Berhasil', 'Komponen ditambahkan', 'success');
+        const selectedAssetObjects = assets.filter(a => selectedAssetIds.includes(a.id));
+        const categoryMap = {};
+        for(let a of selectedAssetObjects) {
+          if (!categoryMap[a.category]) categoryMap[a.category] = [];
+          categoryMap[a.category].push(a.id);
+        }
+
+        let totalInserted = 0;
+        for(let cat in categoryMap) {
+           const res = await api.post('/assets/bulk-components', {
+             asset_ids: categoryMap[cat],
+             category_name: cat
+           });
+           totalInserted += res.data.inserted || 0;
+        }
+        
+        Swal.fire('Berhasil', `Selesai memproses bulk generate! Total <b>${totalInserted} komponen</b> berhasil ditambahkan ke aset.`, 'success');
+        setSelectedAssetIds([]);
+        fetchAssets();
       } catch (err) {
-        Swal.fire('Gagal', 'Terjadi kesalahan sistem', 'error');
+        console.error(err);
+        Swal.fire('Error', 'Gagal memproses bulk auto-generate komponen.', 'error');
       }
     }
   };
 
-  const handleEditComponent = async (comp) => {
-    const { value: formValues } = await Swal.fire({
-      title: 'Edit Komponen',
-      html: `
-        <input id="comp-name" class="swal2-input" value="${comp.name}">
-        <input id="comp-sn" class="swal2-input" placeholder="Serial Number" value="${comp.serial_number || ''}">
-        <select id="comp-status" class="swal2-select" style="display:flex; width: 75%; margin: 1em auto;">
-          <option value="Bagus" ${comp.status === 'Bagus' ? 'selected' : ''}>Bagus</option>
-          <option value="Rusak" ${comp.status === 'Rusak' ? 'selected' : ''}>Rusak</option>
-          <option value="Perbaikan" ${comp.status === 'Perbaikan' ? 'selected' : ''}>Perbaikan</option>
-        </select>
-      `,
-      focusConfirm: false,
-      showCancelButton: true,
-      confirmButtonColor: '#286086',
-      preConfirm: () => {
-        const name = document.getElementById('comp-name').value;
-        const sn = document.getElementById('comp-sn').value;
-        const status = document.getElementById('comp-status').value;
-        if (!name) Swal.showValidationMessage('Nama komponen wajib diisi');
-        return { name, serial_number: sn, status };
-      }
-    });
-
-    if (formValues) {
-      try {
-        await api.put(`/assets/components/${comp.id}`, formValues);
-        const res = await api.get(`/assets/${selectedAsset.id}/components`);
-        setAssetComponents(res.data.data || []);
-        Swal.fire('Berhasil', 'Komponen diperbarui', 'success');
-      } catch (err) {
-        Swal.fire('Gagal', 'Terjadi kesalahan sistem', 'error');
-      }
-    }
+  const handleAddComponent = () => {
+    setComponentForm({ id: '', name: '', serial_number: '', status: 'Bagus', reason: '' });
+    setComponentMode('add');
+    setIsComponentModalOpen(true);
   };
 
-  const handleDeleteComponent = async (compId) => {
-    if (await Swal.fire({title: 'Hapus Komponen?', text: 'Tidak dapat dikembalikan!', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33'}).then(r => r.isConfirmed)) {
+  const handleSwapComponent = (comp) => {
+    setComponentForm({ id: comp.id, name: comp.name, serial_number: '', status: 'Bagus', reason: '' });
+    setComponentMode('swap');
+    setIsComponentModalOpen(true);
+  };
+
+  const handleSaveComponent = async () => {
+    if (!componentForm.name && componentMode === 'add') {
+      Swal.fire('Error', 'Nama Komponen wajib diisi', 'error');
+      return;
+    }
+    if (!componentForm.serial_number && componentMode === 'swap') {
+      Swal.fire('Error', 'Serial Number Baru wajib diisi untuk melakukan Swap', 'error');
+      return;
+    }
+    
+    // UI Feedback
+    setIsComponentModalOpen(false);
+    Swal.fire({ title: 'Memproses...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    try {
+      if (componentMode === 'add') {
+        await api.post(`/assets/${selectedAsset.id}/components`, {
+          name: componentForm.name,
+          serial_number: componentForm.serial_number,
+          status: componentForm.status
+        });
+      } else if (componentMode === 'edit') {
+        // Assume API supports editing basic info (if not, we gracefully catch)
+        try {
+          await api.put(`/components/${componentForm.id}`, {
+            name: componentForm.name,
+            serial_number: componentForm.serial_number,
+            status: componentForm.status
+          });
+        } catch(e) {
+          console.warn("Backend may not have edit endpoint, ignoring edit action.");
+        }
+      } else if (componentMode === 'swap') {
+        await api.put(`/components/${componentForm.id}/swap`, {
+          new_serial_number: componentForm.serial_number,
+          reason: componentForm.reason
+        });
+        // refresh history for swap
+        api.get(`/movements/history/${selectedAsset.id}`).then(res => setHistory(res.data.data || []));
+      }
+
+      // Refresh component list
+      const res = await api.get(`/assets/${selectedAsset.id}/components`);
+      setAssetComponents(res.data.data || []);
+      
+      Swal.fire('Berhasil', `Komponen berhasil ${componentMode === 'swap' ? 'di-swap' : 'ditambahkan'}.`, 'success');
+    } catch (err) {
+      Swal.fire('Error', 'Gagal memproses komponen', 'error');
+    }
+  };
+  const handleEditComponent = (comp) => {
+    setComponentForm({ id: comp.id, name: comp.name, serial_number: comp.serial_number || '', status: comp.status || 'Bagus', reason: '' });
+    setComponentMode('edit');
+    setIsComponentModalOpen(true);
+  };
+
+  const handleDeleteComponent = async (id) => {
+    if (await Swal.fire({title: 'Hapus Komponen?', text: 'Data tidak dapat dikembalikan', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33'}).then(r => r.isConfirmed)) {
       try {
-        await api.delete(`/assets/components/${compId}`);
-        setAssetComponents(assetComponents.filter(c => c.id !== compId));
+        await api.delete(`/components/${id}`);
+        setAssetComponents(prev => prev.filter(c => c.id !== id));
       } catch (err) {
-        Swal.fire('Gagal', 'Terjadi kesalahan', 'error');
+        Swal.fire('Error', 'Gagal menghapus', 'error');
       }
     }
   };
@@ -688,12 +803,15 @@ export default function Assets() {
       const branchInfo = branches.find(b => b.name === a.branch || b.branch_code === a.branch);
       if (!branchInfo || branchInfo.region !== filterRegion) matchRegion = false;
     }
+    
+    let matchDepartment = filterDepartment === 'All Departments' || a.department === filterDepartment;
 
-    return matchSearch && matchRegion;
+    return matchSearch && matchRegion && matchDepartment;
   });
 
   const regions = [...new Set(branches.map(b => b.region).filter(Boolean))];
   const availableBranches = filterRegion === 'All Regions' ? branches : branches.filter(b => b.region === filterRegion);
+  const availableDepartments = [...new Set(assets.map(a => a.department).filter(Boolean))].sort();
   
   const toggleSelectAll = (e) => {
     if (e.target.checked) {
@@ -764,7 +882,7 @@ export default function Assets() {
   // Reset page to 1 when search or filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterBranch, filterStatus]);
+  }, [searchTerm, filterBranch, filterStatus, filterDepartment]);
 
   const renderPagination = (currentPage, totalPages, setCurrentPage) => {
     const pages = [];
@@ -800,267 +918,342 @@ export default function Assets() {
     ));
   };
 
+  const hasLocalFilters = searchTerm !== '' || filterRegion !== 'All Regions' || filterBranch !== 'All Branches' || filterStatus !== 'All Status' || filterDepartment !== 'All Departments';
+  const useStatsForKpi = !syncedAssets && !hasLocalFilters;
+
+  const kpiTotal = useStatsForKpi ? (rawStats.totalAssets || 0) : assets.length;
+  const kpiActive = useStatsForKpi 
+    ? ((rawStats.statusDistribution?.find(s => s.name === 'Active')?.value || 0) + (rawStats.statusDistribution?.find(s => s.name === 'Deployed')?.value || 0))
+    : assets.filter(a => a.status === 'Active' || a.status === 'Deployed').length;
+  const kpiMaint = useStatsForKpi 
+    ? (rawStats.maintenance || 0)
+    : assets.filter(a => a.status === 'Maintenance').length;
+
   return (
     <div className="absolute inset-0 flex flex-col p-3 pb-24 md:p-6 lg:p-8 animate-[fadeIn_0.4s_ease-out]">
-      <div className="flex flex-col xl:flex-row flex-wrap justify-between items-start xl:items-center w-full gap-3 mb-4 md:mb-6 shrink-0 z-20">
+      <div className="flex flex-col w-full gap-3 mb-4 md:mb-6 shrink-0 z-20">
         
-        {/* LEFT/CENTER: Filter & Search Pill OR Bulk Actions */}
-        <div className="flex flex-col lg:flex-row flex-wrap items-center w-full xl:flex-1 gap-2 relative z-50 min-w-0">
-          {selectedAssetIds.length > 0 ? (
-            <div className="flex w-full xl:flex-1 items-center justify-between px-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm animate-[fadeIn_0.2s_ease-out]">
-              <div className="flex items-center gap-3">
-                <button onClick={() => setSelectedAssetIds([])} className="text-slate-400 hover:text-slate-600">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-                <span className="text-xs font-bold text-[#286086] bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100 flex items-center">{selectedAssetIds.length} Assets Selected</span>
+        {/* ROW 1: MAIN TOOLBAR */}
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center w-full gap-3 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm relative z-50">
+          
+          {/* LEFT: Primary Navigation & KPI */}
+          <div className="flex items-center gap-2 relative z-50 flex-1 min-w-0">
+            {/* Refresh Button */}
+            <button 
+              onClick={() => mutateAssets()} 
+              title="Refresh Data"
+              className="bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all shrink-0"
+            >
+              <svg className={`w-4 h-4 ${isAssetsLoading || isRefreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+            </button>
+
+            {/* Filters Toggle Button */}
+            <button 
+              onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+              className={`border w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all shrink-0 ${isFiltersOpen ? 'bg-[#286086] border-[#286086] text-white' : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600'}`}
+              title="Toggle Filters"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+            </button>
+
+
+
+            {/* MINI KPI (Always Visible) */}
+            <div className="hidden xl:flex items-center gap-2 px-3 border-l border-slate-200/60 h-8 ml-2">
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2 py-1 rounded-md shadow-sm whitespace-nowrap">
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Total</span>
+                <span className="text-[10px] font-extrabold text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-100">{kpiTotal}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="relative group/bulk">
-                  <button className="bg-[#286086] border border-[#286086] hover:bg-[#1a4666] text-white px-3 py-1.5 rounded-xl font-bold text-[11px] shadow-md shadow-blue-900/20 transition-all flex items-center gap-1.5">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
-                    Delivery Selected
-                  </button>
-                  <div className="absolute left-0 top-full mt-2 w-48 origin-top-left rounded-xl bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none hidden group-hover/bulk:block z-50 overflow-hidden border border-slate-100">
-                    <div className="py-1">
-                      <button onClick={() => navigate('/deliveries', { state: { bulkDispatchAssets: assets.filter(a => selectedAssetIds.includes(a.id)), isBorrowing: false } })} className="text-left w-full block px-4 py-2.5 text-xs text-rose-600 hover:bg-rose-50 font-bold transition-colors">
-                        🚚 {t('permanentMutation')}
-                      </button>
-                      <button onClick={() => navigate('/deliveries', { state: { bulkDispatchAssets: assets.filter(a => selectedAssetIds.includes(a.id)), isBorrowing: true } })} className="text-left w-full block px-4 py-2.5 text-xs text-[#286086] hover:bg-blue-50 font-bold transition-colors">
-                        🔄 {t('loanAsset')}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                <button onClick={handleBulkToggleLabel} className="bg-white border border-slate-200 hover:border-amber-500 hover:text-amber-600 text-slate-600 px-3 py-1.5 rounded-xl font-bold text-[11px] shadow-sm transition-all flex items-center gap-1.5">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  Mark Labeled
-                </button>
-                <button onClick={openBulkPrintModal} className="bg-white border border-slate-200 hover:border-[#286086] hover:text-[#286086] text-slate-600 px-3 py-1.5 rounded-xl font-bold text-[11px] shadow-sm transition-all flex items-center gap-1.5">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                  {t('bulkPrint')}
-                </button>
-                {canExport && (
-                  <button onClick={handleBulkDelete} className="bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 px-3 py-1.5 rounded-xl font-bold text-[11px] shadow-sm transition-all flex items-center gap-1.5">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                    {t('bulkDelete')}
-                  </button>
-                )}
+              
+              <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-md shadow-sm whitespace-nowrap">
+                <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wider">Active</span>
+                <span className="text-[10px] font-extrabold text-emerald-700 bg-white px-1.5 py-0.5 rounded border border-emerald-50">{kpiActive}</span>
+              </div>
+              
+              <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-100 px-2 py-1 rounded-md shadow-sm whitespace-nowrap">
+                <span className="text-[9px] font-black text-amber-600 uppercase tracking-wider">Maint.</span>
+                <span className="text-[10px] font-extrabold text-amber-700 bg-white px-1.5 py-0.5 rounded border border-amber-50">{kpiMaint}</span>
               </div>
             </div>
-          ) : (
-            <>
-            {/* White Pill for Filters & KPI */}
-            <div className="flex items-center flex-1 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm min-w-0">
-              <div className="flex flex-col xl:flex-row flex-wrap items-center w-full justify-between gap-2 xl:gap-2">
-                <div className="flex items-center flex-wrap xl:flex-nowrap justify-center gap-x-1 gap-y-2 pb-1 xl:pb-0">
-                  <svg className="hidden md:block w-4 h-4 text-[#286086] ml-2 mr-1 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
-                
-                {openDropdown && (
-                  <div className="fixed inset-0 z-40" onClick={() => setOpenDropdown(null)}></div>
-                )}
-                
-                {/* Custom Region Dropdown */}
-                <div className="relative h-8 flex items-center shrink-0">
-                  <button 
-                    onClick={() => setOpenDropdown(openDropdown === 'region' ? null : 'region')}
-                    className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold px-2 outline-none cursor-pointer flex items-center gap-1.5 transition-colors relative z-50"
-                  >
-                    <span className="truncate max-w-[100px]">{filterRegion === 'All Regions' ? t('allRegions') || 'All Regions' : filterRegion}</span>
-                    <svg className={`w-3 h-3 transition-transform ${openDropdown === 'region' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                  </button>
-                  {openDropdown === 'region' && (
-                    <div className="absolute top-full left-0 mt-3 w-44 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.2s_ease-out] flex flex-col">
-                      <div className="p-2 border-b border-slate-100 bg-slate-50/80 shrink-0">
-                        <input 
-                          type="text" 
-                          placeholder="Search Region..." 
-                          value={regionSearch}
-                          onChange={e => setRegionSearch(e.target.value)}
-                          className="w-full text-xs p-1.5 border border-slate-200 rounded-lg outline-none focus:border-[#286086]/50 focus:ring-2 focus:ring-[#286086]/10"
-                        />
-                      </div>
-                      <div className="max-h-56 overflow-y-auto custom-scrollbar py-1">
-                        <div 
-                          onClick={() => { setFilterRegion('All Regions'); setFilterBranch('All Branches'); setOpenDropdown(null); setRegionSearch(''); }}
-                          className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterRegion === 'All Regions' ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
-                        >
-                          {t('allRegions') || 'All Regions'}
-                        </div>
-                        {regions.filter(r => r.toLowerCase().includes(regionSearch.toLowerCase())).map(r => (
-                          <div 
-                            key={r}
-                            onClick={() => { setFilterRegion(r); setFilterBranch('All Branches'); setOpenDropdown(null); setRegionSearch(''); }}
-                            className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors truncate ${filterRegion === r ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
-                            title={r}
-                          >
-                            {r}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
+          </div>
 
-                <div className="hidden md:block w-px h-4 bg-slate-200 shrink-0 mx-1"></div>
-
-                {/* Custom Branch Dropdown */}
-                <div className="relative h-8 flex items-center shrink-0">
-                  <button 
-                    onClick={() => setOpenDropdown(openDropdown === 'branch' ? null : 'branch')}
-                    className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold px-2 outline-none cursor-pointer flex items-center gap-1.5 transition-colors relative z-50"
-                  >
-                    <span className="truncate max-w-[120px]">{filterBranch === 'All Branches' ? t('allBranches') : filterBranch}</span>
-                    <svg className={`w-3 h-3 transition-transform ${openDropdown === 'branch' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                  </button>
-                  {openDropdown === 'branch' && (
-                    <div className="absolute top-full left-0 mt-3 w-56 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.2s_ease-out] flex flex-col">
-                      <div className="p-2 border-b border-slate-100 bg-slate-50/80 shrink-0">
-                        <input 
-                          type="text" 
-                          placeholder="Search Branch..." 
-                          value={branchSearch}
-                          onChange={e => setBranchSearch(e.target.value)}
-                          className="w-full text-xs p-1.5 border border-slate-200 rounded-lg outline-none focus:border-[#286086]/50 focus:ring-2 focus:ring-[#286086]/10"
-                        />
-                      </div>
-                      <div className="max-h-56 overflow-y-auto custom-scrollbar py-1">
-                        <div 
-                          onClick={() => { setFilterBranch('All Branches'); setOpenDropdown(null); setBranchSearch(''); }}
-                          className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterBranch === 'All Branches' ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
-                        >
-                          {t('allBranches')}
-                        </div>
-                        {availableBranches.filter(b => (b.name || b.branch_code).toLowerCase().includes(branchSearch.toLowerCase())).map(b => (
-                          <div 
-                            key={b.id}
-                            onClick={() => { setFilterBranch(b.name || b.branch_code); setOpenDropdown(null); setBranchSearch(''); }}
-                            className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors truncate ${filterBranch === (b.name || b.branch_code) ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
-                            title={b.name || b.branch_code}
-                          >
-                            {b.name || b.branch_code}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="hidden md:block w-px h-4 bg-slate-200 shrink-0 mx-1"></div>
-
-                {/* Custom Status Dropdown */}
-                <div className="relative h-8 flex items-center shrink-0">
-                  <button 
-                    onClick={() => setOpenDropdown(openDropdown === 'status' ? null : 'status')}
-                    className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold px-2 outline-none cursor-pointer flex items-center gap-1.5 transition-colors relative z-50"
-                  >
-                    <span className="truncate max-w-[100px]">{filterStatus === 'All Status' ? t('allStatus') : getTranslatedAssetStatus(filterStatus)}</span>
-                    <svg className={`w-3 h-3 transition-transform ${openDropdown === 'status' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                  </button>
-                  {openDropdown === 'status' && (
-                    <div className="absolute top-full right-0 lg:left-0 mt-3 w-40 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.2s_ease-out]">
-                      <div className="py-1">
-                        <div 
-                          onClick={() => { setFilterStatus('All Status'); setOpenDropdown(null); }}
-                          className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterStatus === 'All Status' ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
-                        >
-                          {t('allStatus')}
-                        </div>
-                        {['Active', 'Deployed', 'In Transit', 'Maintenance', 'Retired'].map(st => (
-                          <div 
-                            key={st}
-                            onClick={() => { setFilterStatus(st); setOpenDropdown(null); }}
-                            className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterStatus === st ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
-                          >
-                            {getTranslatedAssetStatus(st)}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* MINI KPI (Desktop Only) */}
-              <div className="hidden xl:flex items-center gap-2 px-3 border-x border-slate-100 flex-1 justify-center">
-                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2 py-1 rounded-md shadow-sm whitespace-nowrap">
-                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Total</span>
-                  <span className="text-[10px] font-extrabold text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-100">{assets.length}</span>
-                </div>
-                
-                <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-md shadow-sm whitespace-nowrap">
-                  <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wider">Active</span>
-                  <span className="text-[10px] font-extrabold text-emerald-700 bg-white px-1.5 py-0.5 rounded border border-emerald-50">{assets.filter(a => a.status === 'Active' || a.status === 'Deployed').length}</span>
-                </div>
-                
-                <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-100 px-2 py-1 rounded-md shadow-sm whitespace-nowrap">
-                  <span className="text-[9px] font-black text-amber-600 uppercase tracking-wider">Maint.</span>
-                  <span className="text-[10px] font-extrabold text-amber-700 bg-white px-1.5 py-0.5 rounded border border-amber-50">{assets.filter(a => a.status === 'Maintenance').length}</span>
-                </div>
-              </div>
-              </div>
-            </div>
-            
-            {/* Search Box outside Pill */}
-            <div className="relative w-full lg:w-48 shrink-0 bg-white p-1 rounded-2xl border border-slate-200 shadow-sm self-stretch flex items-center">
+          {/* RIGHT: Search & Actions */}
+          <div className="flex items-center justify-center sm:justify-start w-full xl:w-auto gap-2 shrink-0 overflow-x-auto custom-scrollbar">
+            {/* Search Bar */}
+            <div className="relative w-full sm:w-64 shrink-0 bg-slate-50 p-1 rounded-xl border border-slate-100 shadow-inner flex items-center h-10">
               <svg className="w-4 h-4 absolute left-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
               <input 
                 type="text" 
-                placeholder={t('searchAssets')} 
+                placeholder={t('searchAssets') || 'Search Assets...'} 
                 value={searchTerm} 
                 onChange={e => setSearchTerm(e.target.value)} 
-                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#286086]/20 focus:bg-white transition-all text-slate-700 h-full" 
+                className="w-full pl-9 pr-10 py-1 bg-transparent border-none outline-none text-xs font-bold text-slate-700 h-full" 
               />
+              <button 
+                onClick={() => setIsQRScannerOpen(true)}
+                title="Scan QR Code"
+                className="absolute right-2 p-1.5 bg-[#286086]/10 text-[#286086] hover:bg-[#286086] hover:text-white rounded-lg transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-1.5m0 0h-3m-1.3 0H4m8 4v-1m-8-4H4m0 0H2.5M4 4h1.5M4 4h3m8-3h-2m-6 0H4m8 4V4m0 4v3m0 4v-1m0 0v-3" /><path strokeLinecap="round" strokeLinejoin="round" d="M4 4h4v4H4zM16 4h4v4h-4zM4 16h4v4H4z" /></svg>
+              </button>
             </div>
-            </>
-          )}
+
+
+
+            {canCreate && (
+              <button 
+                onClick={openAddModal} 
+                className="bg-[#286086] hover:bg-[#1a4666] text-white px-4 h-10 rounded-xl font-bold text-xs shadow-lg shadow-blue-900/20 transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap"
+              >
+                <span className="text-sm leading-none">+</span> {t('addNewAsset') || 'Add New Asset'}
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* RIGHT: Actions */}
-        <div className="flex items-center justify-center sm:justify-start w-full xl:w-auto gap-2 shrink-0 overflow-x-auto custom-scrollbar pb-1 xl:pb-0">
-          {canImport && (
-            <button 
-              onClick={() => setIsImportModalOpen(true)} 
-              title="Import Bulk"
-              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all shrink-0"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+        {/* ROW 2: BULK ACTIONS OR EXPANDABLE FILTERS */}
+        {selectedAssetIds.length > 0 ? (
+          <div className="flex items-center w-full bg-white p-3 rounded-2xl border border-[#286086]/30 shadow-[0_4px_20px_rgba(40,96,134,0.15)] gap-3 animate-[slideDown_0.2s_ease-out] origin-top flex-wrap">
+            <div className="flex items-center gap-2 px-3 py-1 bg-[#286086]/10 rounded-xl">
+              <span className="text-[#286086] font-black">{selectedAssetIds.length}</span>
+              <span className="text-xs font-bold text-[#286086]">Aset Terpilih</span>
+            </div>
+            
+            <div className="h-6 w-px bg-slate-200 mx-1"></div>
+            
+            <button onClick={handleBulkGenerateComponentMulti} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+              Auto-Generate Komponen
             </button>
-          )}
-          <button 
-            onClick={() => mutateAssets()} 
-            title="Refresh Data"
-            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all shrink-0"
-          >
-            <svg className={`w-4 h-4 ${isAssetsLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-          </button>
-          {canExport && (
-            <button 
-              onClick={handleExportExcel} 
-              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-3 h-10 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center gap-1.5 shrink-0"
-            >
-              <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-              Export Excel
+            <button onClick={openBulkPrintModal} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+              Print Barcode
             </button>
-          )}
-          {selectedAssetIds.length > 0 && canPrintBA && (
-            <button 
-              onClick={() => printBeritaAcara(assets.filter(a => selectedAssetIds.includes(a.id)))} 
-              className="bg-amber-100 border border-amber-200 hover:bg-amber-200 text-amber-800 px-3 h-10 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center gap-1.5 shrink-0"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-              Print B.A. ({selectedAssetIds.length})
+            <button onClick={() => printBeritaAcara(assets.filter(a => selectedAssetIds.includes(a.id)))} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              Cetak BA
             </button>
-          )}
-          {canCreate && (
-            <button 
-              onClick={openAddModal} 
-              className="bg-[#286086] hover:bg-[#1a4666] text-white px-4 h-10 rounded-xl font-bold text-xs shadow-lg shadow-blue-900/20 transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap"
-            >
-              <span className="text-sm leading-none">+</span> {t('addNewAsset') || 'Add New Asset'}
+            <button onClick={handleBulkToggleLabel} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+              Tandai Dilabeli
             </button>
-          )}
-        </div>
+
+            {canDelete && (
+              <button onClick={handleBulkDelete} className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                Hapus Terpilih
+              </button>
+            )}
+          </div>
+        ) : isFiltersOpen ? (
+          <div className="flex flex-col lg:flex-row items-center w-full bg-white p-2 rounded-2xl border border-slate-200 shadow-sm gap-2 animate-[slideDown_0.2s_ease-out] origin-top">
+            <div className="flex items-center flex-wrap gap-2 w-full lg:w-auto">
+              
+              {openDropdown && (
+                <div className="fixed inset-0 z-40" onClick={() => setOpenDropdown(null)}></div>
+              )}
+              
+              {/* Custom Region Dropdown */}
+              <div className="relative h-9 bg-slate-50 border border-slate-100 rounded-xl px-3 flex items-center shrink-0">
+                <button 
+                  onClick={() => setOpenDropdown(openDropdown === 'region' ? null : 'region')}
+                  className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold outline-none cursor-pointer flex items-center gap-1.5 transition-colors relative z-50"
+                >
+                  <span className="truncate max-w-[100px]">{filterRegion === 'All Regions' ? t('allRegions') || 'All Regions' : filterRegion}</span>
+                  <svg className={`w-3 h-3 transition-transform ${openDropdown === 'region' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                {openDropdown === 'region' && (
+                  <div className="absolute top-full left-0 mt-2 w-44 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.1s_ease-out] flex flex-col">
+                    <div className="p-2 border-b border-slate-100 bg-slate-50/80 shrink-0">
+                      <input 
+                        type="text" 
+                        placeholder="Search Region..." 
+                        value={regionSearch}
+                        onChange={e => setRegionSearch(e.target.value)}
+                        className="w-full text-xs p-1.5 border border-slate-200 rounded-lg outline-none focus:border-[#286086]/50 focus:ring-2 focus:ring-[#286086]/10"
+                      />
+                    </div>
+                    <div className="max-h-56 overflow-y-auto custom-scrollbar py-1">
+                      <div 
+                        onClick={() => { setFilterRegion('All Regions'); setFilterBranch('All Branches'); setOpenDropdown(null); setRegionSearch(''); }}
+                        className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterRegion === 'All Regions' ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
+                      >
+                        {t('allRegions') || 'All Regions'}
+                      </div>
+                      {regions.filter(r => r.toLowerCase().includes(regionSearch.toLowerCase())).map(r => (
+                        <div 
+                          key={r}
+                          onClick={() => { setFilterRegion(r); setFilterBranch('All Branches'); setOpenDropdown(null); setRegionSearch(''); }}
+                          className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors truncate ${filterRegion === r ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
+                          title={r}
+                        >
+                          {r}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Custom Branch Dropdown */}
+              <div className="relative h-9 bg-slate-50 border border-slate-100 rounded-xl px-3 flex items-center shrink-0">
+                <button 
+                  onClick={() => setOpenDropdown(openDropdown === 'branch' ? null : 'branch')}
+                  className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold outline-none cursor-pointer flex items-center gap-1.5 transition-colors relative z-50"
+                >
+                  <span className="truncate max-w-[120px]">{filterBranch === 'All Branches' ? t('allBranches') : filterBranch}</span>
+                  <svg className={`w-3 h-3 transition-transform ${openDropdown === 'branch' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                {openDropdown === 'branch' && (
+                  <div className="absolute top-full left-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.1s_ease-out] flex flex-col">
+                    <div className="p-2 border-b border-slate-100 bg-slate-50/80 shrink-0">
+                      <input 
+                        type="text" 
+                        placeholder="Search Branch..." 
+                        value={branchSearch}
+                        onChange={e => setBranchSearch(e.target.value)}
+                        className="w-full text-xs p-1.5 border border-slate-200 rounded-lg outline-none focus:border-[#286086]/50 focus:ring-2 focus:ring-[#286086]/10"
+                      />
+                    </div>
+                    <div className="max-h-56 overflow-y-auto custom-scrollbar py-1">
+                      <div 
+                        onClick={() => { setFilterBranch('All Branches'); setOpenDropdown(null); setBranchSearch(''); }}
+                        className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterBranch === 'All Branches' ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
+                      >
+                        {t('allBranches')}
+                      </div>
+                      {availableBranches.filter(b => (b.name || b.branch_code).toLowerCase().includes(branchSearch.toLowerCase())).map(b => (
+                        <div 
+                          key={b.id}
+                          onClick={() => { setFilterBranch(b.name || b.branch_code); setOpenDropdown(null); setBranchSearch(''); }}
+                          className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors truncate ${filterBranch === (b.name || b.branch_code) ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
+                          title={b.name || b.branch_code}
+                        >
+                          {b.name || b.branch_code}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Custom Department Dropdown */}
+              <div className="relative h-9 bg-slate-50 border border-slate-100 rounded-xl px-3 flex items-center shrink-0">
+                <button 
+                  onClick={() => setOpenDropdown(openDropdown === 'department' ? null : 'department')}
+                  className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold outline-none cursor-pointer flex items-center gap-1.5 transition-colors relative z-50"
+                >
+                  <span className="truncate max-w-[120px]">{filterDepartment === 'All Departments' ? t('allDepartments') || 'All Departments' : filterDepartment}</span>
+                  <svg className={`w-3 h-3 transition-transform ${openDropdown === 'department' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                {openDropdown === 'department' && (
+                  <div className="absolute top-full left-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.1s_ease-out] flex flex-col">
+                    <div className="p-2 border-b border-slate-100 bg-slate-50/80 shrink-0">
+                      <input 
+                        type="text" 
+                        placeholder="Search Department..." 
+                        value={departmentSearch}
+                        onChange={e => setDepartmentSearch(e.target.value)}
+                        className="w-full text-xs p-1.5 border border-slate-200 rounded-lg outline-none focus:border-[#286086]/50 focus:ring-2 focus:ring-[#286086]/10"
+                      />
+                    </div>
+                    <div className="max-h-56 overflow-y-auto custom-scrollbar py-1">
+                      <div 
+                        onClick={() => { setFilterDepartment('All Departments'); setOpenDropdown(null); setDepartmentSearch(''); }}
+                        className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterDepartment === 'All Departments' ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
+                      >
+                        {t('allDepartments') || 'All Departments'}
+                      </div>
+                      {availableDepartments.filter(d => d.toLowerCase().includes(departmentSearch.toLowerCase())).map((d, idx) => (
+                        <div 
+                          key={idx}
+                          onClick={() => { setFilterDepartment(d); setOpenDropdown(null); setDepartmentSearch(''); }}
+                          className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors truncate ${filterDepartment === d ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
+                          title={d}
+                        >
+                          {d}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Custom Status Dropdown */}
+              <div className="relative h-9 bg-slate-50 border border-slate-100 rounded-xl px-3 flex items-center shrink-0">
+                <button 
+                  onClick={() => setOpenDropdown(openDropdown === 'status' ? null : 'status')}
+                  className="bg-transparent h-full text-slate-700 hover:text-[#286086] text-xs font-bold outline-none cursor-pointer flex items-center gap-1.5 transition-colors relative z-50"
+                >
+                  <span className="truncate max-w-[100px]">{filterStatus === 'All Status' ? t('allStatus') : getTranslatedAssetStatus(filterStatus)}</span>
+                  <svg className={`w-3 h-3 transition-transform ${openDropdown === 'status' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                {openDropdown === 'status' && (
+                  <div className="absolute top-full left-0 mt-2 w-40 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-[fadeIn_0.1s_ease-out]">
+                    <div className="py-1">
+                      <div 
+                        onClick={() => { setFilterStatus('All Status'); setOpenDropdown(null); }}
+                        className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterStatus === 'All Status' ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
+                      >
+                        {t('allStatus')}
+                      </div>
+                      {['Active', 'Deployed', 'In Transit', 'Maintenance', 'Retired'].map(st => (
+                        <div 
+                          key={st}
+                          onClick={() => { setFilterStatus(st); setOpenDropdown(null); }}
+                          className={`px-4 py-2 text-xs font-bold cursor-pointer transition-colors ${filterStatus === st ? 'bg-[#286086]/10 text-[#286086]' : 'text-slate-600 hover:bg-slate-50'}`}
+                        >
+                          {getTranslatedAssetStatus(st)}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2 ml-auto shrink-0">
+              {(filterRegion !== 'All Regions' || filterBranch !== 'All Branches' || filterDepartment !== 'All Departments' || filterStatus !== 'All Status') && (
+                <button 
+                  onClick={() => {
+                    setFilterRegion('All Regions');
+                    setFilterBranch('All Branches');
+                    setFilterDepartment('All Departments');
+                    setFilterStatus('All Status');
+                    setCurrentPage(1);
+                  }}
+                  title="Reset Filters"
+                  className="bg-rose-50 border border-rose-100 hover:bg-rose-100 text-rose-600 px-3 py-1.5 h-9 rounded-xl flex items-center justify-center shadow-sm transition-all font-bold text-[11px] gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  Reset
+                </button>
+              )}
+
+              {canImport && (
+                <button 
+                  onClick={() => setIsImportModalOpen(true)} 
+                  title="Import Bulk"
+                  className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm transition-all"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                </button>
+              )}
+              
+              {canExport && (
+                <button 
+                  onClick={handleExportExcel} 
+                  title="Export Excel"
+                  className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-600 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm transition-all"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                </button>
+              )}
+            </div>
+
+          </div>
+        ) : null}
+
       </div>
 
       <div className="flex-1 bg-white/70 backdrop-blur-xl border border-white/40 shadow-xl shadow-slate-200/40 rounded-3xl overflow-hidden flex flex-col relative z-10">
@@ -1101,12 +1294,15 @@ export default function Assets() {
                 </tr>
               ) : paginatedAssets.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="p-12 text-center">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <div className="w-14 h-14 bg-slate-50 border-2 border-dashed border-slate-200 rounded-full flex items-center justify-center text-slate-400 mb-1">
-                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                  <td colSpan="7" className="text-center py-16 px-4">
+                    <div className="flex flex-col items-center justify-center space-y-3">
+                      <div className="w-16 h-16 bg-slate-50 border border-slate-100 rounded-full flex items-center justify-center shadow-inner">
+                        <svg className="w-8 h-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
                       </div>
-                      <div className="text-sm font-bold text-slate-500">{t('noAssetsFound')}</div>
+                      <div>
+                         <p className="text-sm font-bold text-slate-600">{t('noAssetsFound')}</p>
+                         <p className="text-[11px] text-slate-400 mt-0.5">{t('noAssetsFoundDesc')}</p>
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -1121,7 +1317,7 @@ export default function Assets() {
                         {!asset.is_labeled && (
                           <div className="group/tooltip relative flex items-center justify-center">
                             <svg className="w-4 h-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-                            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover/tooltip:block bg-slate-800 text-white text-[10px] px-2 py-1 rounded-md whitespace-nowrap shadow-lg">Belum berlabel</div>
+                            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover/tooltip:block bg-slate-800 text-white text-[10px] px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-xl z-50 animate-[slideUp_0.2s_ease-out] border border-slate-700/50">Belum berlabel</div>
                           </div>
                         )}
                         {asset.id}
@@ -1149,22 +1345,42 @@ export default function Assets() {
                       </span>
                     </td>
                     <td className="px-4 py-3 align-top text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end">
+                      <div className="flex items-center justify-end gap-1">
                         {canPrintBA && (
-                          <button onClick={() => printBeritaAcara([asset])} title="Print Berita Acara" className="text-slate-500 hover:text-amber-600 p-1 mx-0.5 transition-colors"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg></button>
+                          <div className="relative group/action">
+                            <button onClick={() => printBeritaAcara([asset])} className="text-slate-400 hover:text-[#286086] hover:bg-blue-50 p-1.5 rounded-lg transition-all"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg></button>
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/action:block bg-slate-900 text-white text-[10px] font-medium px-3 py-1.5 rounded shadow-xl z-50">Print B.A.</div>
+                          </div>
                         )}
-                        <button onClick={() => openPrintModal(asset)} title={t('printLabel') || 'Print Label'} className="text-slate-500 hover:text-slate-800 p-1 mx-0.5 transition-colors"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg></button>
+                        <div className="relative group/action">
+                          <button onClick={() => openPrintModal(asset)} className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-1.5 rounded-lg transition-all">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4h6v6H4V4zm10 0h6v6h-6V4zM4 14h6v6H4v-6zm13 0h3v3h-3v-3zm-3 3h3v3h-3v-3zm3 3h3v-3h-3v3zm-3-6h3v3h-3v-3z" /></svg>
+                          </button>
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/action:block bg-slate-900 text-white text-[10px] font-medium px-3 py-1.5 rounded shadow-xl z-50">Print QR Code</div>
+                        </div>
                         {asset.calibration_doc_url && (
-                          <a href={asset.calibration_doc_url} target="_blank" rel="noreferrer" title="Dokumen Kalibrasi" className="text-emerald-500 hover:text-emerald-700 p-1 mx-0.5 transition-colors">
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                          </a>
+                          <div className="relative group/action">
+                            <a href={asset.calibration_doc_url} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 p-1.5 rounded-lg transition-all inline-block">
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                            </a>
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/action:block bg-slate-900 text-white text-[10px] font-medium px-3 py-1.5 rounded shadow-xl z-50">Dokumen Kalibrasi</div>
+                          </div>
                         )}
-                        <button onClick={() => openDetailModal(asset)} className="text-blue-600 hover:text-blue-800 p-1 mx-0.5"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg></button>
+                        <div className="relative group/action">
+                          <button onClick={() => openDetailModal(asset)} className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded-lg transition-all"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg></button>
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/action:block bg-slate-900 text-white text-[10px] font-medium px-3 py-1.5 rounded shadow-xl z-50">View Details</div>
+                        </div>
                         {canEdit && (
-                          <button onClick={() => openEditModal(asset)} className="text-amber-500 hover:text-amber-600 p-1 mx-0.5"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                          <div className="relative group/action">
+                            <button onClick={() => openEditModal(asset)} className="text-slate-400 hover:text-amber-500 hover:bg-amber-50 p-1.5 rounded-lg transition-all"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/action:block bg-slate-900 text-white text-[10px] font-medium px-3 py-1.5 rounded shadow-xl z-50">Edit</div>
+                          </div>
                         )}
                         {canDelete && (
-                          <button onClick={() => handleDelete(asset.id)} className="text-rose-500 hover:text-rose-600 p-1 mx-0.5"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                          <div className="relative group/action">
+                            <button onClick={() => handleDelete(asset.id)} className="text-slate-400 hover:text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-all"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/action:block bg-slate-900 text-white text-[10px] font-medium px-3 py-1.5 rounded shadow-xl z-50">Hapus</div>
+                          </div>
                         )}
                         
                         {/* Deep Action Menu */}
@@ -1630,10 +1846,16 @@ export default function Assets() {
                       Komponen Asset
                     </h3>
                     {canEdit && (
-                      <button onClick={handleAddComponent} className="bg-[#286086] text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-800 transition-colors flex items-center gap-1 shadow-sm">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
-                        Tambah Komponen
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button onClick={handleBulkGenerateComponent} className="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors flex items-center gap-1 shadow-sm">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                          Generate dari Template
+                        </button>
+                        <button onClick={handleAddComponent} className="bg-[#286086] text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-800 transition-colors flex items-center gap-1 shadow-sm">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
+                          Manual Input
+                        </button>
+                      </div>
                     )}
                   </div>
                   {assetComponents.length === 0 ? (
@@ -1653,8 +1875,12 @@ export default function Assets() {
                           </div>
                           {canEdit && (
                             <div className="flex items-center gap-2 mt-4 pt-3 border-t border-slate-100">
-                              <button onClick={() => handleEditComponent(comp)} className="flex-1 text-xs font-bold text-slate-600 hover:text-[#286086] bg-slate-50 hover:bg-slate-100 py-1.5 rounded transition-colors">Edit</button>
-                              <button onClick={() => handleDeleteComponent(comp.id)} className="flex-1 text-xs font-bold text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 py-1.5 rounded transition-colors">Hapus</button>
+                              <button onClick={() => handleSwapComponent(comp)} className="flex-1 text-[11px] font-bold text-white bg-[#286086] hover:bg-[#1a4666] py-1.5 rounded transition-all shadow-sm flex justify-center items-center gap-1">
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                                Swap
+                              </button>
+                              <button onClick={() => handleEditComponent(comp)} className="text-[11px] font-bold text-slate-500 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded transition-colors border border-slate-200">Info</button>
+                              <button onClick={() => handleDeleteComponent(comp.id)} className="text-[11px] font-bold text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded transition-colors border border-red-100">Hapus</button>
                             </div>
                           )}
                         </div>
@@ -1671,43 +1897,71 @@ export default function Assets() {
                     {t('movementHistory')}
                   </h3>
                   <div className="relative pl-4">
-                    <div className="absolute left-[27px] top-2 bottom-6 w-[2px] bg-slate-100"></div>
+                    <div className="absolute left-[19px] top-4 bottom-8 w-[2px] border-l-2 border-dashed border-slate-200"></div>
                     {history.map((mov, idx) => (
-                      <div key={idx} className="flex gap-5 mb-8 relative">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center relative z-10 shadow-md border-4 border-white shrink-0 ${mov.movement_type === 'Mutation' ? 'bg-purple-600' : mov.movement_type === 'Borrowing' ? 'bg-amber-500' : 'bg-[#286086]'}`}>
-                          <div className="w-2 h-2 rounded-full bg-white"></div>
+                      <div key={idx} className="flex gap-4 mb-6 relative group">
+                        <div className="relative z-10 flex flex-col items-center mt-1">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-sm border-[3px] border-white transition-transform group-hover:scale-110 ${mov.status.includes('Completed') || mov.status.includes('Received') ? 'bg-emerald-500 text-white' : mov.status.includes('Transit') || mov.status.includes('Pending') ? 'bg-amber-500 text-white' : 'bg-blue-500 text-white'}`}>
+                            {mov.movement_type === 'Mutation' ? (
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                            ) : mov.movement_type === 'Borrowing' ? (
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                            )}
+                          </div>
                         </div>
-                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 w-full shadow-sm">
-                          <div className="flex justify-between items-start mb-1">
-                            <h4 className="text-sm font-black text-slate-800">{mov.movement_type || 'Delivery'} <span className="mx-1 text-slate-300">•</span> <span className={`text-[10px] uppercase tracking-wider font-bold ${mov.status.includes('Completed') || mov.status.includes('Received') ? 'text-emerald-600' : 'text-blue-600'}`}>{mov.status}</span></h4>
-                            <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-1 rounded shadow-sm border border-slate-100 tracking-wider font-mono">#{mov.tracking_code}</span>
-                          </div>
-                          
-                          <div className="flex items-center gap-2 text-xs font-bold text-slate-600 mb-2">
-                            <span>{mov.from_location}</span>
-                            <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                            <span>{mov.to_location}</span>
-                          </div>
-                          
-                          <p className="text-xs font-medium text-slate-500 italic mb-3">{mov.purpose}</p>
-                          
-                          {mov.movement_logs && mov.movement_logs.length > 0 && (
-                            <div className="mt-3 pl-3 border-l-2 border-slate-200 space-y-2">
-                              {mov.movement_logs.map((log, lIdx) => (
-                                <div key={lIdx} className="text-[10px]">
-                                  <span className="font-bold text-slate-700">{log.status_update}</span>
-                                  <span className="text-slate-400 ml-1">oleh {log.updated_by}</span>
-                                  <p className="text-slate-500 mt-0.5">{log.description}</p>
-                                </div>
-                              ))}
+                        
+                        <div className="flex-1 pb-4">
+                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 sm:gap-4 mb-2">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-sm font-black text-slate-800">{mov.movement_type || 'Delivery'}</h4>
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] uppercase tracking-wider font-bold ${mov.status.includes('Completed') || mov.status.includes('Received') ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : mov.status.includes('Transit') || mov.status.includes('Pending') ? 'bg-amber-50 text-amber-600 border border-amber-100' : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>{mov.status}</span>
+                              </div>
+                              <span className="text-[10px] font-bold text-slate-400 font-mono inline-block mt-0.5">#{mov.tracking_code}</span>
                             </div>
-                          )}
-
-                          <div className="mt-3 flex items-center gap-4 border-t border-slate-200 pt-3">
-                            <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                              {new Date(mov.created_at).toLocaleString('id-ID')}
+                            <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
+                              <svg className="w-3 h-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                              {new Date(mov.created_at).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                             </span>
+                          </div>
+                          
+                          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm relative group-hover:border-blue-200 group-hover:shadow transition-all">
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-700 mb-1.5">
+                              <div className="flex items-center gap-1.5">
+                                <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                <span>{mov.from_location}</span>
+                              </div>
+                              <div className="h-[2px] w-4 bg-slate-300 rounded-full"></div>
+                              <svg className="w-3.5 h-3.5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
+                              <div className="h-[2px] w-4 bg-slate-300 rounded-full"></div>
+                              <div className="flex items-center gap-1.5 text-[#286086]">
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+                                <span>{mov.to_location}</span>
+                              </div>
+                            </div>
+                            
+                            <p className="text-[11px] font-medium text-slate-500 italic bg-slate-50 p-2 rounded-lg border border-slate-100">{mov.purpose}</p>
+                            
+                            {mov.movement_logs && mov.movement_logs.length > 0 && (
+                              <div className="mt-4 pt-3 border-t border-slate-100 space-y-3">
+                                {mov.movement_logs.map((log, lIdx) => (
+                                  <div key={lIdx} className="flex gap-3 relative">
+                                    <div className="absolute left-[3px] top-[14px] bottom-[-16px] w-[1px] border-l border-dashed border-slate-200"></div>
+                                    <div className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 shrink-0 relative z-10 ring-4 ring-white"></div>
+                                    <div className="text-[11px] bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 w-full">
+                                      <div className="flex justify-between items-start">
+                                        <span className="font-bold text-slate-700">{log.status_update}</span>
+                                        <span className="text-[9px] text-slate-400 font-bold ml-2 shrink-0">{new Date(log.created_at || mov.created_at).toLocaleDateString('id-ID', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                      </div>
+                                      {log.description && <p className="text-slate-500 mt-0.5 leading-relaxed">{log.description}</p>}
+                                      <span className="text-[9px] text-slate-400 font-bold block mt-1">oleh <span className="text-blue-600">{log.updated_by}</span></span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1725,20 +1979,53 @@ export default function Assets() {
                 <div className="animate-[fadeIn_0.3s_ease-out]">
                   {assetCalibration ? (
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                      <div className={`p-6 border-b flex justify-between items-center ${assetCalibration.status === 'Valid' ? 'bg-emerald-50 border-emerald-100' : assetCalibration.status === 'Expired' ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-200'}`}>
-                        <div className="flex items-center gap-3">
-                           <div className={`w-10 h-10 rounded-full flex items-center justify-center ${assetCalibration.status === 'Valid' ? 'bg-emerald-200 text-emerald-800' : assetCalibration.status === 'Expired' ? 'bg-rose-200 text-rose-800' : 'bg-amber-200 text-amber-800'}`}>
-                             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                           </div>
-                           <div>
-                             <h3 className="text-sm font-black text-slate-800">{t('calibrationStatus')}</h3>
-                             <p className="text-xs font-bold text-slate-500 mt-0.5">Asset ID: {assetCalibration.asset_id}</p>
-                           </div>
-                        </div>
-                        <span className={`px-4 py-1.5 rounded-lg text-xs font-black tracking-widest uppercase shadow-sm ${assetCalibration.status === 'Valid' ? 'bg-emerald-500 text-white' : assetCalibration.status === 'Expired' ? 'bg-rose-500 text-white' : 'bg-amber-500 text-white'}`}>
-                          {assetCalibration.status}
-                        </span>
-                      </div>
+                      {(() => {
+                        const nextCalDate = new Date(assetCalibration.next_calibration_date);
+                        const now = new Date();
+                        const isExpired = nextCalDate < now;
+                        const isExpiringSoon = !isExpired && nextCalDate <= new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+                        const displayStatus = isExpired ? 'Expired' : assetCalibration.status;
+                        
+                        return (
+                          <>
+                            {(isExpired || isExpiringSoon) && (
+                              <div className={`p-4 border-b flex justify-between items-center ${isExpired ? 'bg-rose-100 border-rose-200' : 'bg-amber-100 border-amber-200'}`}>
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isExpired ? 'bg-rose-500 text-white' : 'bg-amber-500 text-white'}`}>
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                  </div>
+                                  <div>
+                                    <h3 className={`text-sm font-black ${isExpired ? 'text-rose-800' : 'text-amber-800'}`}>
+                                      {isExpired ? 'Kalibrasi Kadaluarsa!' : 'Kalibrasi Segera Berakhir!'}
+                                    </h3>
+                                    <p className={`text-[10px] font-bold mt-0.5 ${isExpired ? 'text-rose-600' : 'text-amber-600'}`}>
+                                      {isExpired ? 'Masa berlaku sudah habis. Harap segera lakukan kalibrasi ulang.' : 'Harap jadwalkan kalibrasi ulang untuk aset ini.'}
+                                    </p>
+                                  </div>
+                                </div>
+                                <button onClick={() => { setIsDetailModalOpen(false); handleQuickAction('ticketing', selectedAsset); }} className={`px-3 py-1.5 rounded-lg text-[10px] font-black shadow-sm transition-all flex items-center gap-1.5 ${isExpired ? 'bg-rose-600 hover:bg-rose-700 text-white' : 'bg-amber-600 hover:bg-amber-700 text-white'}`}>
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" /></svg>
+                                  Request Kalibrasi
+                                </button>
+                              </div>
+                            )}
+                            <div className={`p-6 border-b flex justify-between items-center ${displayStatus === 'Valid' ? 'bg-emerald-50 border-emerald-100' : displayStatus === 'Expired' ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-200'}`}>
+                              <div className="flex items-center gap-3">
+                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${displayStatus === 'Valid' ? 'bg-emerald-200 text-emerald-800' : displayStatus === 'Expired' ? 'bg-rose-200 text-rose-800' : 'bg-amber-200 text-amber-800'}`}>
+                                   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                 </div>
+                                 <div>
+                                   <h3 className="text-sm font-black text-slate-800">{t('calibrationStatus')}</h3>
+                                   <p className="text-xs font-bold text-slate-500 mt-0.5">Asset ID: {assetCalibration.asset_id}</p>
+                                 </div>
+                              </div>
+                              <span className={`px-4 py-1.5 rounded-lg text-xs font-black tracking-widest uppercase shadow-sm ${displayStatus === 'Valid' ? 'bg-emerald-500 text-white' : displayStatus === 'Expired' ? 'bg-rose-500 text-white' : 'bg-amber-500 text-white'}`}>
+                                {displayStatus}
+                              </span>
+                            </div>
+                          </>
+                        );
+                      })()}
                       <div className="p-6 grid grid-cols-2 gap-6 bg-slate-50/50">
                         <div>
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{t('lastCalibrated')}</p>
@@ -1754,6 +2041,15 @@ export default function Assets() {
                             {assetCalibration.notes || '-'}
                           </div>
                         </div>
+                        {assetCalibration.certificate_url && (
+                          <div className="col-span-2">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Sertifikat Kalibrasi</p>
+                            <a href={assetCalibration.certificate_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 rounded-xl font-bold text-sm transition-colors border border-blue-200 shadow-sm w-fit">
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                              Lihat Dokumen
+                            </a>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -1961,6 +2257,89 @@ export default function Assets() {
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><circle cx="12" cy="13" r="4" /></svg>
               Jepret Foto
             </button>
+          </div>
+        </div>
+      </BaseModal>
+
+      {/* QR Scanner Modal */}
+      <QRScannerModal 
+        isOpen={isQRScannerOpen}
+        onClose={() => setIsQRScannerOpen(false)}
+        onScanSuccess={(decodedText) => {
+          setSearchTerm(decodedText);
+          setIsFiltersOpen(false); // Close filters if open so results are clear
+        }}
+      />
+      {/* COMPONENT ACTION MODAL (ADD / SWAP) */}
+      <BaseModal
+        isOpen={isComponentModalOpen}
+        onClose={() => setIsComponentModalOpen(false)}
+        title={componentMode === 'swap' ? 'Swap Komponen' : componentMode === 'edit' ? 'Edit Komponen' : 'Tambah Komponen'}
+        maxWidth="max-w-md"
+      >
+        <div className="p-6">
+          <div className="mb-6 flex items-center justify-center">
+            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-inner ${componentMode === 'swap' ? 'bg-blue-50 text-blue-500' : 'bg-emerald-50 text-emerald-500'}`}>
+              {componentMode === 'swap' ? (
+                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+              ) : componentMode === 'edit' ? (
+                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+              ) : (
+                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+              )}
+            </div>
+          </div>
+          
+          {componentMode === 'swap' && (
+            <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 mb-6 text-sm text-blue-800">
+              <span className="font-bold">Info Swap:</span> Mengganti <b>{componentForm.name}</b>. Sistem otomatis akan merekam riwayat penggantian ini pada log aset.
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {(componentMode === 'add' || componentMode === 'edit') && (
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">Nama Komponen *</label>
+                {componentMode === 'add' ? (
+                  <select required value={componentForm.name} onChange={e => setComponentForm({...componentForm, name: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#286086] focus:bg-white">
+                    <option value="" disabled>Pilih dari Kamus Master Komponen</option>
+                    {masterComponents.map(mc => (
+                      <option key={mc.id} value={mc.name}>{mc.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input required type="text" value={componentForm.name} onChange={e => setComponentForm({...componentForm, name: e.target.value})} placeholder="Contoh: Baterai Lithium 4000mAh" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#286086] focus:bg-white" />
+                )}
+              </div>
+            )}
+            
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">{componentMode === 'swap' ? 'Serial Number Baru *' : 'Serial Number'}</label>
+              <input type="text" value={componentForm.serial_number} onChange={e => setComponentForm({...componentForm, serial_number: e.target.value})} placeholder="S/N komponen" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#286086] focus:bg-white" />
+            </div>
+
+            {componentMode === 'swap' && (
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">Alasan Penggantian *</label>
+                <input required type="text" value={componentForm.reason} onChange={e => setComponentForm({...componentForm, reason: e.target.value})} placeholder="Contoh: Komponen lama terbakar" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#286086] focus:bg-white" />
+              </div>
+            )}
+            
+            {(componentMode === 'add' || componentMode === 'edit') && (
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">Status</label>
+                <select value={componentForm.status} onChange={e => setComponentForm({...componentForm, status: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#286086] focus:bg-white">
+                  <option value="Bagus">Bagus</option>
+                  <option value="Rusak">Rusak</option>
+                  <option value="Perbaikan">Perbaikan</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3 mt-8">
+            <button onClick={() => setIsComponentModalOpen(false)} className="flex-1 py-3 px-4 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-colors">Batal</button>
+            <button onClick={handleSaveComponent} className="flex-1 py-3 px-4 bg-[#286086] text-white font-bold rounded-xl hover:bg-[#1a4666] shadow-md shadow-blue-900/20 transition-all active:scale-95">Simpan Data</button>
           </div>
         </div>
       </BaseModal>

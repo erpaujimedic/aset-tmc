@@ -121,9 +121,121 @@
 }
 
 /* ==========================================
-   🚑 GLOBAL FIXES
+   🚑 GLOBAL FIXES & SWEETALERT OVERRIDES
    ========================================== */
 /* Memastikan popup SweetAlert selalu berada di atas modal Tailwind (misal: z-[9999]) */
 .swal2-container {
   z-index: 99999 !important;
+  backdrop-filter: blur(4px);
+  background-color: rgba(15, 23, 42, 0.4) !important;
+}
+
+/* Kustomisasi Tampilan Popup Modal SweetAlert2 agar Premium */
+.swal2-popup {
+  border-radius: 24px !important;
+  padding: 32px 24px 24px 24px !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(20px) !important;
+  font-family: inherit !important;
+}
+
+.swal2-title {
+  color: #1e293b !important;
+  font-weight: 900 !important;
+  font-size: 1.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.swal2-html-container {
+  color: #64748b !important;
+  font-weight: 500 !important;
+  font-size: 0.95rem !important;
+  line-height: 1.6 !important;
+}
+
+.swal2-icon {
+  border: none !important;
+  margin-bottom: 24px !important;
+}
+
+.swal2-icon.swal2-warning {
+  color: #f59e0b !important;
+  background: #fef3c7 !important;
+  border-radius: 50% !important;
+}
+
+.swal2-icon.swal2-success {
+  color: #10b981 !important;
+  background: #d1fae5 !important;
+  border-radius: 50% !important;
+}
+
+.swal2-icon.swal2-error {
+  color: #ef4444 !important;
+  background: #fee2e2 !important;
+  border-radius: 50% !important;
+}
+
+.swal2-icon.swal2-info {
+  color: #3b82f6 !important;
+  background: #dbeafe !important;
+  border-radius: 50% !important;
+}
+
+/* Kustomisasi Tombol SweetAlert2 */
+.swal2-actions {
+  gap: 12px !important;
+  margin-top: 28px !important;
+}
+
+.swal2-confirm {
+  background-color: #286086 !important;
+  color: white !important;
+  border-radius: 12px !important;
+  padding: 12px 24px !important;
+  font-weight: 700 !important;
+  font-size: 0.875rem !important;
+  box-shadow: 0 4px 14px 0 rgba(40, 96, 134, 0.39) !important;
+  transition: all 0.2s ease !important;
+}
+
+.swal2-confirm:hover {
+  background-color: #1a4666 !important;
+  transform: translateY(-2px) !important;
+}
+
+.swal2-cancel {
+  background-color: white !important;
+  color: #64748b !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 12px !important;
+  padding: 12px 24px !important;
+  font-weight: 700 !important;
+  font-size: 0.875rem !important;
+  transition: all 0.2s ease !important;
+}
+
+.swal2-cancel:hover {
+  background-color: #f8fafc !important;
+  color: #334155 !important;
+  border-color: #94a3b8 !important;
+  transform: translateY(-2px) !important;
+}
+
+.swal2-deny {
+  background-color: #ef4444 !important;
+  color: white !important;
+  border-radius: 12px !important;
+  padding: 12px 24px !important;
+  font-weight: 700 !important;
+  font-size: 0.875rem !important;
+  box-shadow: 0 4px 14px 0 rgba(239, 68, 68, 0.39) !important;
+  transition: all 0.2s ease !important;
+}
+
+.swal2-deny:hover {
+  background-color: #dc2626 !important;
+  transform: translateY(-2px) !important;
 }
