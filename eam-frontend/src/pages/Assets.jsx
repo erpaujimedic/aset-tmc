@@ -89,6 +89,7 @@ export default function Assets() {
     id: '', name: '', category: '', branch: '', department: '', assignee: '', status: 'Active', details: ''
   });
   const [isEditing, setIsEditing] = useState(false);
+  const [originalAssetId, setOriginalAssetId] = useState(null);
 
   // Form Custom Dropdown States
   const [formDropdown, setFormDropdown] = useState(null); // 'branch', 'department'
@@ -265,6 +266,7 @@ export default function Assets() {
     const isAdminSystem = ['Master Admin', 'Admin System'].includes(user?.role);
     setForm({ id: '', name: '', category: '', branch: isAdminSystem ? '' : user?.branch, department: '', assignee: '', status: 'Active', details: '' });
     setIsEditing(false);
+    setOriginalAssetId(null);
     setIsModalOpen(true);
   };
 
@@ -286,6 +288,7 @@ export default function Assets() {
   const openEditModal = (asset) => {
     setForm(asset);
     setIsEditing(true);
+    setOriginalAssetId(asset.id);
     setIsModalOpen(true);
   };
 
@@ -682,7 +685,7 @@ export default function Assets() {
     
     // Optimistic UI mutation
     const newAssets = isEditing 
-      ? rawAssets.map(a => a.id === form.id ? { ...a, ...form } : a)
+      ? rawAssets.map(a => a.id === originalAssetId ? { ...a, ...form } : a)
       : [{ ...form, created_at: new Date().toISOString() }, ...rawAssets];
       
     mutateAssets(newAssets, false); // Update locally immediately
@@ -690,7 +693,7 @@ export default function Assets() {
 
     try {
       if (isEditing) {
-        await api.put(`/assets/${form.id}`, form);
+        await api.put(`/assets/${originalAssetId}`, form);
         Swal.fire({title: 'Success', text: 'Asset updated!', icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 3000});
       } else {
         await api.post('/assets', form);
@@ -761,6 +764,23 @@ export default function Assets() {
     } catch (err) {
       console.error(err);
       Swal.fire('Error', 'Gagal mengekspor Excel', 'error');
+    }
+  };
+  const handleDownloadTemplate = async () => {
+    Swal.fire({ title: 'Downloading Template...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    try {
+      const response = await api.get('/assets/import-template', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'Asset_Import_Template.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      Swal.close();
+    } catch (err) {
+      console.error(err);
+      Swal.fire('Error', 'Gagal mengunduh template', 'error');
     }
   };
 
@@ -1464,7 +1484,7 @@ export default function Assets() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Asset ID / Kode Aset *</label>
-                      <input required type="text" value={form.id || ''} disabled={isEditing} onChange={e => setForm({...form, id: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm outline-none disabled:opacity-50" />
+                      <input required type="text" value={form.id || ''} disabled={isEditing && !isAdminSystem} onChange={e => setForm({...form, id: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm outline-none disabled:opacity-50" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Nama Asset *</label>
@@ -2195,10 +2215,10 @@ export default function Assets() {
         <div className="space-y-6">
               <div className="bg-[#286086]/5 border border-[#286086]/20 rounded-2xl p-5 text-center">
                 <p className="text-sm text-slate-600 font-medium mb-4">Mulai dengan mengunduh template Excel khusus yang sudah kami siapkan beserta petunjuk pengisiannya.</p>
-                <a href="http://127.0.0.1:8000/assets/import-template" download className="inline-flex items-center gap-2 bg-white border-2 border-[#286086] text-[#286086] hover:bg-[#286086] hover:text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm">
+                <button type="button" onClick={handleDownloadTemplate} className="inline-flex items-center gap-2 bg-white border-2 border-[#286086] text-[#286086] hover:bg-[#286086] hover:text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                   Download Template .xlsx
-                </a>
+                </button>
               </div>
               
               <form onSubmit={handleImportSubmit} className="space-y-4">

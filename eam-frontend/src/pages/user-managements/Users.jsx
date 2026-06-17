@@ -8,7 +8,7 @@ import useAuthStore from '../../store/authStore';
 
 export default function Users() {
   const { t } = useI18nStore();
-  const { hasPermission } = useAuthStore();
+  const { user, hasPermission } = useAuthStore();
   
   const canCreate = hasPermission('User Managements - Users', 'Create');
   const canEdit = hasPermission('User Managements - Users', 'Edit');
