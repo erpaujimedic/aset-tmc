@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Swal from 'sweetalert2';
 import EditUserModal from '../../components/user-managements/EditUserModal';
 import { fetchAllUsers, deleteUser, resetUserPassword, fetchSystemRoles, importUsers } from '../../services/userService';
@@ -438,8 +439,8 @@ export default function Users() {
       />
 
       {/* IMPORT MODAL */}
-      {isImportModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
+      {isImportModalOpen && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-[slideUp_0.3s_ease-out]">
             <div className="bg-[#286086] p-6 text-white flex justify-between items-center">
               <div>
@@ -486,7 +487,8 @@ export default function Users() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>
