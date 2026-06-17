@@ -298,6 +298,12 @@ export default function PublicAssetPortal() {
         <div className="bg-white/90 backdrop-blur-xl rounded-[32px] shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] border border-white overflow-hidden mb-6 relative">
           <div className="p-7">
             <h2 className="text-3xl font-black text-slate-800 leading-[1.1] tracking-tight mb-2">{asset.name}</h2>
+            <div className="mb-4">
+              <span className="inline-flex items-center gap-1.5 bg-yellow-300 text-yellow-900 px-3 py-1 rounded-md text-sm font-black shadow-sm">
+                <svg className="w-4 h-4 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                {asset.id}
+              </span>
+            </div>
             <div className="flex items-center gap-2 mb-6">
               <span className="text-xs font-bold text-[#286086] bg-blue-50 px-2.5 py-1 rounded-md">{asset.category}</span>
               <span className={`px-2.5 py-1 rounded-md text-[10px] font-black tracking-widest uppercase border ${asset.status === 'Active' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : asset.status === 'In Transit' ? 'bg-purple-50 text-purple-600 border-purple-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
