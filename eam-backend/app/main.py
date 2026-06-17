@@ -60,7 +60,7 @@ app.add_middleware(
 )
 
 # Extreme Optimization: Compress JSON responses to save bandwidth and speed up load times
-app.add_middleware(GZipMiddleware, minimum_size=500)
+# app.add_middleware(GZipMiddleware, minimum_size=500)
 
 import os
 os.makedirs("uploads", exist_ok=True)
