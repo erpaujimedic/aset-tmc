@@ -1853,7 +1853,17 @@ export default function Assets() {
                       <QRCodeSVG value={`${window.location.origin}/public-asset/${selectedAsset.id}`} size={120} />
                     </div>
                     <span className="text-xs font-black tracking-widest text-[#286086] uppercase">{t('scanMe')}</span>
-                    <p className="text-[10px] text-slate-400 mt-2 text-center">{t('scanDesc')}</p>
+                    <p className="text-[10px] text-slate-400 mt-2 mb-3 text-center">{t('scanDesc')}</p>
+                    <a 
+                      href={`/public-asset/${selectedAsset.id}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200 transition-colors flex items-center gap-1.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                      Buka Tautan Portal
+                    </a>
                   </div>
                 </div>
               )}
