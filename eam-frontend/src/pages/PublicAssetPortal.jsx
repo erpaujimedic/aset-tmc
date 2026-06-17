@@ -47,14 +47,8 @@ export default function PublicAssetPortal() {
   const fetchData = async () => {
     try {
       // 1. Fetch Asset
-      const assetRes = await api.get(`/assets?asset_id=${id}`);
-      let match = null;
-      if (assetRes.data.data.length === 0) {
-        const fallbackRes = await api.get('/assets');
-        match = fallbackRes.data.data.find(a => a.id === id);
-      } else {
-        match = assetRes.data.data[0];
-      }
+      const assetRes = await api.get('/assets');
+      const match = assetRes.data.data.find(a => String(a.id) === String(id));
 
       if (!match) {
         setError('Asset not found');
@@ -341,6 +335,10 @@ export default function PublicAssetPortal() {
         <div className="bg-white rounded-[28px] shadow-sm border border-slate-100 p-6 min-h-[300px]">
           {activeTab === 'info' && (
             <div className="animate-[fadeIn_0.3s_ease-out] space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-50 pb-3">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Asset ID / Kode</span>
+                <span className="text-sm font-black text-slate-800">{asset.id}</span>
+              </div>
               <div className="flex justify-between items-center border-b border-slate-50 pb-3">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Serial Number</span>
                 <span className="text-sm font-black text-slate-800">{asset.serial_number || '-'}</span>
