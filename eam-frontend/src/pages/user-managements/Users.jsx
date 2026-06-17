@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import EditUserModal from '../../components/user-managements/EditUserModal';
-import { fetchAllUsers, deleteUser, resetUserPassword, fetchSystemRoles } from '../../services/userService';
+import { fetchAllUsers, deleteUser, resetUserPassword, fetchSystemRoles, importUsers } from '../../services/userService';
+import api from '../../services/api';
 import useMasterStore from '../../store/masterStore';
 import useI18nStore from '../../store/i18nStore';
 import useAuthStore from '../../store/authStore';
@@ -19,6 +20,10 @@ export default function Users() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Import States
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Filter States
   const [filterRole, setFilterRole] = useState('All Roles');
@@ -56,6 +61,46 @@ export default function Users() {
     if (branches.length === 0) fetchBranches();
     fetchSystemRoles().then(data => setRoles(data || [])).catch(console.error);
   }, []);
+
+  const handleDownloadTemplate = async () => {
+    Swal.fire({ title: 'Downloading Template...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    try {
+      const response = await api.get('/users/import-template', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'User_Import_Template.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      Swal.close();
+    } catch (error) {
+      console.error('Error downloading template:', error);
+      Swal.fire('Failed', 'Failed to download template', 'error');
+    }
+  };
+
+  const handleImportSubmit = async () => {
+    const file = fileInputRef.current?.files[0];
+    if (!file) {
+      Swal.fire('Error', 'Silakan pilih file Excel terlebih dahulu', 'error');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    Swal.fire({ title: 'Mengimport Data...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    try {
+      const res = await importUsers(formData);
+      Swal.fire('Sukses', res.message || 'User berhasil diimport', 'success');
+      setIsImportModalOpen(false);
+      loadUsers();
+    } catch (error) {
+      console.error('Import error:', error);
+      Swal.fire('Gagal', error.response?.data?.detail || 'Gagal mengimport data', 'error');
+    }
+  };
 
   const filteredUsers = users.filter(u => {
     const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase());
@@ -237,11 +282,19 @@ export default function Users() {
             <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
           </button>
           {canCreate && (
-            <button 
-              onClick={() => { setSelectedUser(null); setIsModalOpen(true); }}
-              className="bg-[#286086] hover:bg-[#1a4666] text-white px-5 h-11 rounded-xl font-bold text-sm shadow-lg shadow-blue-900/20 transition-all flex items-center gap-2 shrink-0">
-              <span className="text-lg leading-none">+</span> {t('add')} User
-            </button>
+            <>
+              <button 
+                onClick={() => setIsImportModalOpen(true)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 h-11 rounded-xl font-bold text-sm shadow-lg shadow-emerald-900/20 transition-all flex items-center gap-2 shrink-0">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                Import Excel
+              </button>
+              <button 
+                onClick={() => { setSelectedUser(null); setIsModalOpen(true); }}
+                className="bg-[#286086] hover:bg-[#1a4666] text-white px-5 h-11 rounded-xl font-bold text-sm shadow-lg shadow-blue-900/20 transition-all flex items-center gap-2 shrink-0">
+                <span className="text-lg leading-none">+</span> {t('add')} User
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -383,6 +436,58 @@ export default function Users() {
         }} 
         user={selectedUser} 
       />
+
+      {/* IMPORT MODAL */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-[slideUp_0.3s_ease-out]">
+            <div className="bg-[#286086] p-6 text-white flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-black tracking-tight">Import Bulk User</h3>
+                <p className="text-blue-100 text-xs mt-1 font-medium">Unggah file Excel untuk menambahkan banyak user</p>
+              </div>
+              <button onClick={() => setIsImportModalOpen(false)} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="mb-6 flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50">
+                <svg className="w-12 h-12 text-[#286086] mb-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                <p className="text-sm font-bold text-slate-700 mb-1">Unggah Template Excel</p>
+                <p className="text-xs text-slate-500 mb-4 text-center">Pastikan Anda menggunakan template yang disediakan.</p>
+                
+                <input 
+                  type="file" 
+                  ref={fileInputRef}
+                  accept=".xlsx"
+                  className="block w-full text-sm text-slate-500
+                    file:mr-4 file:py-2.5 file:px-4
+                    file:rounded-xl file:border-0
+                    file:text-xs file:font-bold
+                    file:bg-blue-50 file:text-[#286086]
+                    hover:file:bg-blue-100 transition-colors
+                    cursor-pointer"
+                />
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={handleImportSubmit}
+                  className="w-full bg-[#286086] hover:bg-[#1a4666] text-white py-3 rounded-xl font-black text-sm shadow-lg shadow-blue-900/20 transition-all"
+                >
+                  Proses Import Data
+                </button>
+                <button 
+                  onClick={handleDownloadTemplate}
+                  className="w-full bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-600 hover:text-slate-800 py-3 rounded-xl font-bold text-sm transition-all"
+                >
+                  Download Template .xlsx
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
