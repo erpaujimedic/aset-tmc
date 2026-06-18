@@ -1,5 +1,5 @@
 import os
-from supabase import create_client, Client
+from supabase import create_client, Client, ClientOptions
 import firebase_admin
 from dotenv import load_dotenv
 
@@ -10,7 +10,7 @@ supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_KEY")
 
 if supabase_url and supabase_key:
-    supabase: Client = create_client(supabase_url, supabase_key)
+    supabase: Client = create_client(supabase_url, supabase_key, options=ClientOptions(postgrest_client_timeout=10, storage_client_timeout=10))
 else:
     supabase = None
     print("WARNING: Supabase credentials not found.")

@@ -115,7 +115,11 @@ export default function MainLayout() {
       } catch(err) { console.error(err); }
     };
     fetchPendingApprovals();
-    const interval = setInterval(fetchPendingApprovals, 15000);
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchPendingApprovals();
+      }
+    }, 15000);
 
     return () => {
       if (chatSub) chatSub.unsubscribe();
@@ -754,25 +758,7 @@ export default function MainLayout() {
         {/* CENTER ACTION (Add Asset) */}
         <div className="w-[20%] flex justify-center">
           <NavLink to="/assets" state={{ action: 'new' }} onClick={() => setIsSidebarOpen(false)} className={({isActive}) => `absolute -top-6 flex flex-col items-center justify-center w-[60px] h-[60px] rounded-full border-[5px] border-[#F8F9FA] shadow-lg transition-all duration-300 bg-[#30528A] text-white hover:scale-105`}>
-            <NavLink
-              to="/settings/sla-settings"
-              className={({ isActive }) => `flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                isActive ? 'bg-[#286086] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-              }`}
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-              <span className="font-semibold text-sm">SLA Setting</span>
-            </NavLink>
 
-            <NavLink
-              to="/settings/master-components"
-              className={({ isActive }) => `flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                isActive ? 'bg-[#286086] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-              }`}
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-              <span className="font-semibold text-sm">Master Components</span>
-            </NavLink>
             <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
           </NavLink>
         </div>

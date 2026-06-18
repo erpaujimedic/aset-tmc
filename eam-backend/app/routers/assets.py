@@ -361,7 +361,26 @@ async def create_asset(asset: AssetCreate):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
-        res = supabase.table("assets").insert(asset.dict()).execute()
+        asset_dict = asset.dict()
+        cat_raw = str(asset_dict.get("category", "")).upper()
+        if "FFF" in cat_raw or "FURNITURE" in cat_raw:
+            asset_dict["category"] = "Furniture"
+        elif "ELK" in cat_raw or ("ELEKTRONIK" in cat_raw and "ALAT KESEHATAN" not in cat_raw):
+            asset_dict["category"] = "Elektronik Non Alat Kesehatan"
+        elif "ALK" in cat_raw or ("ELEKTRONIK" in cat_raw and "ALAT KESEHATAN" in cat_raw):
+            asset_dict["category"] = "Elektronik Alat Kesehatan"
+        elif "VH2" in cat_raw or "RODA 2" in cat_raw or "MOTOR" in cat_raw:
+            asset_dict["category"] = "Kendaraan Roda 2"
+        elif "VH4" in cat_raw or "RODA 4" in cat_raw or "MOBIL" in cat_raw:
+            asset_dict["category"] = "Kendaraan Roda 4"
+        elif "HRW" in cat_raw or "HARDWARE" in cat_raw:
+            asset_dict["category"] = "Hardware"
+        elif "LGL" in cat_raw or "SURAT" in cat_raw or "LEGAL" in cat_raw:
+            asset_dict["category"] = "Surat Berharga"
+        elif "PRK" in cat_raw or "PERKAKAS" in cat_raw:
+            asset_dict["category"] = "Perkakas"
+
+        res = supabase.table("assets").insert(asset_dict).execute()
         await FastAPICache.clear(namespace="assets")
         return {"message": "Asset created successfully", "data": res.data}
     except Exception as e:
@@ -373,6 +392,27 @@ async def update_asset(asset_id: str, asset: AssetUpdate):
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
         update_data = {k: v for k, v in asset.dict().items() if v is not None}
+        
+        # Intercept category to store full name
+        if "category" in update_data:
+            cat_raw = str(update_data["category"]).upper()
+            if "FFF" in cat_raw or "FURNITURE" in cat_raw:
+                update_data["category"] = "Furniture"
+            elif "ELK" in cat_raw or ("ELEKTRONIK" in cat_raw and "ALAT KESEHATAN" not in cat_raw):
+                update_data["category"] = "Elektronik Non Alat Kesehatan"
+            elif "ALK" in cat_raw or ("ELEKTRONIK" in cat_raw and "ALAT KESEHATAN" in cat_raw):
+                update_data["category"] = "Elektronik Alat Kesehatan"
+            elif "VH2" in cat_raw or "RODA 2" in cat_raw or "MOTOR" in cat_raw:
+                update_data["category"] = "Kendaraan Roda 2"
+            elif "VH4" in cat_raw or "RODA 4" in cat_raw or "MOBIL" in cat_raw:
+                update_data["category"] = "Kendaraan Roda 4"
+            elif "HRW" in cat_raw or "HARDWARE" in cat_raw:
+                update_data["category"] = "Hardware"
+            elif "LGL" in cat_raw or "SURAT" in cat_raw or "LEGAL" in cat_raw:
+                update_data["category"] = "Surat Berharga"
+            elif "PRK" in cat_raw or "PERKAKAS" in cat_raw:
+                update_data["category"] = "Perkakas"
+
         if not update_data:
             return {"message": "No data to update"}
         res = supabase.table("assets").update(update_data).eq("id", asset_id).execute()
@@ -440,6 +480,23 @@ def get_import_template():
     for row in info_data:
         ws2.append(row)
         
+    # Add Data Validation (Dropdowns) to Sheet 1
+    from openpyxl.worksheet.datavalidation import DataValidation
+    
+    # Category Validation
+    cat_dv = DataValidation(type="list", formula1='"Furniture,Elektronik Non Alat Kesehatan,Elektronik Alat Kesehatan,Kendaraan Roda 2,Kendaraan Roda 4,Hardware,Surat Berharga,Perkakas"', allow_blank=True)
+    cat_dv.error = 'Your entry is not in the list'
+    cat_dv.errorTitle = 'Invalid Entry'
+    ws1.add_data_validation(cat_dv)
+    cat_dv.add('I2:I1000') # Column I
+    
+    # Condition Validation
+    cond_dv = DataValidation(type="list", formula1='"BAGUS & DIGUNAKAN,BAGUS & TIDAK DIGUNAKAN,RUSAK & PERLU PERGANTIAN,RUSAK & PERLU DIMUSNAHKAN"', allow_blank=True)
+    cond_dv.error = 'Your entry is not in the list'
+    cond_dv.errorTitle = 'Invalid Entry'
+    ws1.add_data_validation(cond_dv)
+    cond_dv.add('N2:N1000') # Column N
+        
     out = io.BytesIO()
     wb.save(out)
     out.seek(0)
@@ -506,15 +563,43 @@ async def import_assets(file: UploadFile = File(...)):
             if provided_id:
                 asset_id = provided_id
             else:
-                asset_id = f"AST-{current_year}-{category_code}-{str(uuid.uuid4()).split('-')[0].upper()}"
-            
-            qr = qrcode.QRCode(version=1, box_size=10, border=5)
-            qr.add_data(asset_id)
-            qr.make(fit=True)
-            img = qr.make_image(fill_color="black", back_color="white")
-            buffer = io.BytesIO()
-            img.save(buffer, format="PNG")
-            qr_base64 = base64.b64encode(buffer.getvalue()).decode()
+                import random
+                import datetime
+                date_str = datetime.datetime.now().strftime("%y%m")
+                random_digits = str(random.randint(10000, 99999))
+                cat_raw = str(category_code).upper()
+                if "FFF" in cat_raw or "FURNITURE" in cat_raw:
+                    cat_prefix = "FFF"
+                    standard_category = "Furniture"
+                elif "ELK" in cat_raw or ("ELEKTRONIK" in cat_raw and "ALAT KESEHATAN" not in cat_raw):
+                    cat_prefix = "ELK"
+                    standard_category = "Elektronik Non Alat Kesehatan"
+                elif "ALK" in cat_raw or ("ELEKTRONIK" in cat_raw and "ALAT KESEHATAN" in cat_raw):
+                    cat_prefix = "ALK"
+                    standard_category = "Elektronik Alat Kesehatan"
+                elif "VH2" in cat_raw or "RODA 2" in cat_raw or "MOTOR" in cat_raw:
+                    cat_prefix = "VH2"
+                    standard_category = "Kendaraan Roda 2"
+                elif "VH4" in cat_raw or "RODA 4" in cat_raw or "MOBIL" in cat_raw:
+                    cat_prefix = "VH4"
+                    standard_category = "Kendaraan Roda 4"
+                elif "HRW" in cat_raw or "HARDWARE" in cat_raw:
+                    cat_prefix = "HRW"
+                    standard_category = "Hardware"
+                elif "LGL" in cat_raw or "SURAT" in cat_raw or "LEGAL" in cat_raw:
+                    cat_prefix = "LGL"
+                    standard_category = "Surat Berharga"
+                elif "PRK" in cat_raw or "PERKAKAS" in cat_raw:
+                    cat_prefix = "PRK"
+                    standard_category = "Perkakas"
+                else:
+                    cat_prefix = cat_raw[:3] if cat_raw else "AST"
+                    standard_category = category_code
+                    
+                asset_id = f"{cat_prefix}-{date_str}-{random_digits}"
+                
+                # Overwrite category_code to be the standard code so it displays correctly in the table
+                category_code = standard_category
             
             asset_data = {
                 "id": asset_id,
@@ -533,7 +618,6 @@ async def import_assets(file: UploadFile = File(...)):
                 "placement_location": placement_location,
                 "rack_number": rack_number,
                 "calibration_doc_url": calibration_doc_url,
-                "qr_code": qr_base64,
                 "is_labeled": False,
                 "status": "Active"
             }

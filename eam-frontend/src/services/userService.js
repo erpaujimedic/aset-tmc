@@ -52,10 +52,6 @@ export const updateRolePermissions = async (roleName, permissionsData) => {
 };
 
 export const importUsers = async (formData) => {
-  const response = await api.post('/users/import', formData, {
-    headers: {
-      'Content-Type': undefined
-    }
-  });
+  const response = await api.postForm('/users/import', formData);
   return response.data;
 };

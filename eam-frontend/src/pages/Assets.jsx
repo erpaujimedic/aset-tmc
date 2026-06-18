@@ -52,9 +52,10 @@ export default function Assets() {
   
   // Modals
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [addMode, setAddMode] = useState('single'); // 'single' or 'bulk'
+  const [isEditing, setIsEditing] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
   const [importFile, setImportFile] = useState(null);
   
@@ -88,7 +89,6 @@ export default function Assets() {
   const [form, setForm] = useState({
     id: '', name: '', category: '', branch: '', department: '', assignee: '', status: 'Active', details: ''
   });
-  const [isEditing, setIsEditing] = useState(false);
   const [originalAssetId, setOriginalAssetId] = useState(null);
 
   // Form Custom Dropdown States
@@ -267,7 +267,20 @@ export default function Assets() {
     setForm({ id: '', name: '', category: '', branch: isAdminSystem ? '' : user?.branch, department: '', assignee: '', status: 'Active', details: '' });
     setIsEditing(false);
     setOriginalAssetId(null);
+    setAddMode('single');
     setIsModalOpen(true);
+  };
+
+  const getCategoryPrefix = (val) => {
+    if (val === 'Furniture') return 'FFF';
+    if (val === 'Elektronik' || val === 'Elektronik Non Alat Kesehatan') return 'ELK';
+    if (val === 'Elektronik Alat Kesehatan') return 'ALK';
+    if (val === 'Kendaraan Roda 2') return 'VH2';
+    if (val === 'Kendaraan Roda 4') return 'VH4';
+    if (val === 'Hardware') return 'HRW';
+    if (val === 'Surat Berharga') return 'LGL';
+    if (val === 'Perkakas') return 'PRK';
+    return val ? val.substring(0, 3).toUpperCase() : 'AST';
   };
 
   const handleCategoryChange = (val) => {
@@ -279,16 +292,34 @@ export default function Assets() {
         const yymm = `${String(d.getFullYear()).slice(-2)}${String(d.getMonth()+1).padStart(2, '0')}`;
         // Generate random 5 digits
         const randomDigits = Math.floor(10000 + Math.random() * 90000);
-        newForm.id = `${val}-${yymm}-${randomDigits}`;
+        const prefix = getCategoryPrefix(val);
+        newForm.id = `${prefix}-${yymm}-${randomDigits}`;
       }
       return newForm;
     });
   };
 
+  const getFullCategoryName = (val) => {
+    if (!val) return '';
+    const v = val.toUpperCase();
+    if (v === 'FFF' || v === 'FURNITURE') return 'Furniture';
+    if (v === 'ELK' || v === 'ELEKTRONIK' || v === 'ELEKTRONIK NON ALAT KESEHATAN') return 'Elektronik Non Alat Kesehatan';
+    if (v === 'ALK' || v === 'ELEKTRONIK ALAT KESEHATAN') return 'Elektronik Alat Kesehatan';
+    if (v === 'VH2' || v === 'KENDARAAN RODA 2') return 'Kendaraan Roda 2';
+    if (v === 'VH4' || v === 'KENDARAAN RODA 4') return 'Kendaraan Roda 4';
+    if (v === 'HRW' || v === 'HARDWARE') return 'Hardware';
+    if (v === 'LGL' || v === 'SURAT BERHARGA') return 'Surat Berharga';
+    if (v === 'PRK' || v === 'PERKAKAS') return 'Perkakas';
+    return val;
+  };
+
   const openEditModal = (asset) => {
-    setForm(asset);
+    const assetToEdit = { ...asset };
+    assetToEdit.category = getFullCategoryName(asset.category);
+    setForm(assetToEdit);
     setIsEditing(true);
     setOriginalAssetId(asset.id);
+    setAddMode('single');
     setIsModalOpen(true);
   };
 
@@ -706,6 +737,32 @@ export default function Assets() {
     }
   };
 
+  const handleImportSubmit = async (e) => {
+    e.preventDefault();
+    if (!importFile) return Swal.fire('Error', 'Silakan pilih file Excel terlebih dahulu', 'error');
+    
+    const formData = new FormData();
+    formData.append('file', importFile);
+    
+    Swal.fire({
+      title: 'Memproses Import...',
+      text: 'Mohon tunggu, sedang memproses data Excel.',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+    
+    try {
+      const res = await api.postForm('/assets/import', formData);
+      Swal.fire('Success', res.data.message || 'Import berhasil!', 'success');
+      setIsModalOpen(false);
+      setImportFile(null);
+      fetchAssets();
+    } catch (err) {
+      console.error(err);
+      Swal.fire('Error', err.response?.data?.detail || 'Gagal melakukan import data', 'error');
+    }
+  };
+
   const handleDelete = async (id) => {
     if(await Swal.fire({title: t('areYouSure'), text: t('cantRevert'), icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: t('yesDeleteIt')}).then(res => res.isConfirmed)) {
       try {
@@ -781,34 +838,6 @@ export default function Assets() {
     } catch (err) {
       console.error(err);
       Swal.fire('Error', 'Gagal mengunduh template', 'error');
-    }
-  };
-
-  const handleImportSubmit = async (e) => {
-    e.preventDefault();
-    if (!importFile) return Swal.fire('Error', 'Silakan pilih file Excel terlebih dahulu', 'error');
-    
-    const formData = new FormData();
-    formData.append('file', importFile);
-    
-    Swal.fire({
-      title: 'Memproses Import...',
-      text: 'Mohon tunggu, sedang memproses data Excel.',
-      allowOutsideClick: false,
-      didOpen: () => Swal.showLoading()
-    });
-    
-    try {
-      const res = await api.post('/assets/import', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      Swal.fire('Success', res.data.message || 'Import berhasil!', 'success');
-      setIsImportModalOpen(false);
-      setImportFile(null);
-      fetchAssets();
-    } catch (err) {
-      console.error(err);
-      Swal.fire('Error', err.response?.data?.detail || 'Gagal melakukan import data', 'error');
     }
   };
 
@@ -896,7 +925,7 @@ export default function Assets() {
     if (sortConfig.direction === 'asc') {
       return <svg className="w-3 h-3 ml-1 text-[#286086]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" /></svg>;
     }
-    return <svg className="w-3 h-3 ml-1 text-[#286086]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>;
+    return <svg className="w-3 h-3 ml-1 text-[#286086]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>;
   };
 
   // Reset page to 1 when search or filter changes
@@ -1250,16 +1279,6 @@ export default function Assets() {
                 </button>
               )}
 
-              {canImport && (
-                <button 
-                  onClick={() => setIsImportModalOpen(true)} 
-                  title="Import Bulk"
-                  className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm transition-all"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                </button>
-              )}
-              
               {canExport && (
                 <button 
                   onClick={handleExportExcel} 
@@ -1440,43 +1459,70 @@ export default function Assets() {
         )}
       </div>
 
-      <BaseModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} title="Import Assets from Excel" maxWidth="max-w-4xl">
-        <form onSubmit={handleImportSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Upload File (.xlsx)</label>
-            <input type="file" accept=".xlsx, .xls" onChange={(e) => setImportFile(e.target.files[0])} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[#286086]/10 file:text-[#286086] hover:file:bg-[#286086]/20 transition-colors" required />
-          </div>
-          <div className="bg-blue-50 text-blue-800 text-xs p-3 rounded-lg border border-blue-100 flex items-start gap-2">
-            <svg className="w-5 h-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            <p>Pastikan format excel sesuai dengan template master. Header harus berada di baris pertama.</p>
-          </div>
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <button type="button" onClick={() => setIsImportModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors">Batal</button>
-            <button type="submit" className="px-6 py-2.5 text-sm font-bold bg-[#286086] text-white rounded-xl shadow-[0_8px_20px_-6px_rgba(40,96,134,0.5)] hover:bg-[#1a4666] transition-all flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-              Upload & Import
-            </button>
-          </div>
-        </form>
-      </BaseModal>
-
-      {/* CRUD MODAL */}
+      {/* COMBINED MODAL */}
       <BaseModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={isEditing ? t('editAsset') : t('addNewAsset')}
         maxWidth="max-w-4xl"
         footer={
-          <>
-            <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-200 rounded-xl transition-colors">{t('cancel')}</button>
-            <button type="submit" form="assetForm" className="px-6 py-2.5 text-sm font-bold bg-[#286086] text-white rounded-xl shadow-[0_8px_20px_-6px_rgba(40,96,134,0.5)] hover:bg-[#1a4666] transition-all flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
-              {t('saveAsset')}
-            </button>
-          </>
+          addMode === 'bulk' ? (
+            <>
+              <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-200 rounded-xl transition-colors">{t('cancel')}</button>
+              <button type="submit" form="importAssetForm" className="px-6 py-2.5 text-sm font-bold bg-[#286086] text-white rounded-xl shadow-[0_8px_20px_-6px_rgba(40,96,134,0.5)] hover:bg-[#1a4666] transition-all flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                Upload & Import
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-200 rounded-xl transition-colors">{t('cancel')}</button>
+              <button type="submit" form="assetForm" className="px-6 py-2.5 text-sm font-bold bg-[#286086] text-white rounded-xl shadow-[0_8px_20px_-6px_rgba(40,96,134,0.5)] hover:bg-[#1a4666] transition-all flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+                {t('saveAsset')}
+              </button>
+            </>
+          )
         }
       >
-        <form id="assetForm" onSubmit={handleSubmit} className="space-y-6">
+        {!isEditing && (
+          <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
+            <button
+              type="button"
+              onClick={() => setAddMode('single')}
+              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${addMode === 'single' ? 'bg-white text-[#286086] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Input Satuan
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddMode('bulk')}
+              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${addMode === 'bulk' ? 'bg-white text-[#286086] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Import Massal
+            </button>
+          </div>
+        )}
+
+        {addMode === 'bulk' ? (
+          <form id="importAssetForm" onSubmit={handleImportSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Upload File (.xlsx)</label>
+              <input type="file" accept=".xlsx, .xls" onChange={(e) => setImportFile(e.target.files[0])} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[#286086]/10 file:text-[#286086] hover:file:bg-[#286086]/20 transition-colors" required />
+            </div>
+            <div className="bg-blue-50 text-blue-800 text-xs p-3 rounded-lg border border-blue-100 flex flex-col gap-2">
+              <div className="flex items-start gap-2">
+                <svg className="w-5 h-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <p>Pastikan format excel sesuai dengan template master. Header harus berada di baris pertama.</p>
+              </div>
+              <button type="button" onClick={() => window.open(`${import.meta.env.VITE_API_URL}/assets/import-template`, '_blank')} className="self-start mt-1 text-sm font-semibold text-[#286086] hover:text-[#1a4666] underline flex items-center gap-1">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                Download Template Excel
+              </button>
+            </div>
+          </form>
+        ) : (
+          <form id="assetForm" onSubmit={handleSubmit} className="space-y-6">
                 
                 {/* Section: Basic Info */}
                 <div>
@@ -1494,14 +1540,14 @@ export default function Assets() {
                       <label className="block text-xs font-bold text-slate-600 mb-1">Kategori Asset *</label>
                       <select required value={form.category || ''} onChange={e => handleCategoryChange(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm outline-none cursor-pointer">
                         <option value="" disabled>Pilih Kategori</option>
-                        <option value="FFF">FFF : Furniture</option>
-                        <option value="ELK">ELK : Elektronik Non Alat Kesehatan</option>
-                        <option value="ALK">ALK : Elektronik Alat Kesehatan</option>
-                        <option value="VH2">VH2 : Kendaraan Roda 2</option>
-                        <option value="VH4">VH4 : Kendaraan Roda 4</option>
-                        <option value="HRW">HRW : Hardware</option>
-                        <option value="LGL">LGL : Surat Berharga</option>
-                        <option value="PRK">PRK : Perkakas</option>
+                        <option value="Furniture">FFF : Furniture</option>
+                        <option value="Elektronik Non Alat Kesehatan">ELK : Elektronik Non Alat Kesehatan</option>
+                        <option value="Elektronik Alat Kesehatan">ALK : Elektronik Alat Kesehatan</option>
+                        <option value="Kendaraan Roda 2">VH2 : Kendaraan Roda 2</option>
+                        <option value="Kendaraan Roda 4">VH4 : Kendaraan Roda 4</option>
+                        <option value="Hardware">HRW : Hardware</option>
+                        <option value="Surat Berharga">LGL : Surat Berharga</option>
+                        <option value="Perkakas">PRK : Perkakas</option>
                       </select>
                     </div>
                     <div>
@@ -1747,6 +1793,7 @@ export default function Assets() {
                 </div>
 
               </form>
+        )}
       </BaseModal>
 
       {/* DETAIL MODAL */}
@@ -2215,42 +2262,7 @@ export default function Assets() {
             </div>
       </BaseModal>
 
-      {/* IMPORT MODAL */}
-      <BaseModal
-        isOpen={isImportModalOpen}
-        onClose={() => setIsImportModalOpen(false)}
-        maxWidth="max-w-4xl"
-        title="Import Bulk Assets"
-      >
-        <div className="space-y-6">
-              <div className="bg-[#286086]/5 border border-[#286086]/20 rounded-2xl p-5 text-center">
-                <p className="text-sm text-slate-600 font-medium mb-4">Mulai dengan mengunduh template Excel khusus yang sudah kami siapkan beserta petunjuk pengisiannya.</p>
-                <button type="button" onClick={handleDownloadTemplate} className="inline-flex items-center gap-2 bg-white border-2 border-[#286086] text-[#286086] hover:bg-[#286086] hover:text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                  Download Template .xlsx
-                </button>
-              </div>
-              
-              <form onSubmit={handleImportSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Upload File Excel Terisi</label>
-                  <input 
-                    type="file" 
-                    accept=".xlsx"
-                    onChange={e => setImportFile(e.target.files[0])}
-                    className="w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-[#286086] hover:file:bg-blue-100 file:cursor-pointer file:transition-colors bg-slate-50 border border-slate-200 rounded-xl p-1"
-                    required
-                  />
-                </div>
-                <div className="pt-2">
-                  <button type="submit" className="w-full py-3 text-sm font-bold bg-[#286086] text-white rounded-xl shadow-[0_8px_20px_-6px_rgba(40,96,134,0.5)] hover:bg-[#1a4666] transition-all flex items-center justify-center gap-2">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                    Proses Import Data
-                  </button>
-                </div>
-              </form>
-            </div>
-      </BaseModal>
+
 
       {/* CAMERA OVERLAY MODAL */}
       <BaseModal

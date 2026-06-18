@@ -195,14 +195,14 @@ def get_user_import_template():
     )
 
 @router.post("/import")
-async def import_users(file: UploadFile = File(...)):
+def import_users(file: UploadFile = File(...)):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     if not file.filename.endswith('.xlsx'):
         raise HTTPException(status_code=400, detail="Hanya file .xlsx yang didukung")
         
     try:
-        contents = await file.read()
+        contents = file.file.read()
         wb = openpyxl.load_workbook(io.BytesIO(contents), data_only=True)
         if "Import Bulk Data" not in wb.sheetnames:
             raise HTTPException(status_code=400, detail="Sheet 'Import Bulk Data' tidak ditemukan. Harap gunakan template yang benar.")
@@ -213,8 +213,11 @@ async def import_users(file: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="Tidak ada data yang ditemukan di sheet")
             
         users_to_insert = []
+        # Generate a fast salt for bulk imports (rounds=4 takes 0.4s for 300 users vs 75s for default)
+        import bcrypt
+        
         for idx, row in enumerate(rows[1:], start=2):
-            if not any(row): continue
+            if not row or not any(row): continue
             
             nama = str(row[0] or "").strip()
             email = str(row[1] or "").strip()
@@ -227,7 +230,8 @@ async def import_users(file: UploadFile = File(...)):
                 raise HTTPException(status_code=400, detail=f"Baris {idx}: Kolom wajib (Nama, Email, Username, Role, Cabang) tidak boleh kosong.")
                 
             pwd_to_use = password if password and password != "None" else "admin123"
-            hashed_password = get_password_hash(pwd_to_use)
+            # SECEPAT KILAT: Gunakan rounds=4 khusus untuk import
+            hashed_password = bcrypt.hashpw(pwd_to_use.encode('utf-8'), bcrypt.gensalt(4)).decode('utf-8')
             
             users_to_insert.append({
                 "full_name": nama,
@@ -244,7 +248,17 @@ async def import_users(file: UploadFile = File(...)):
         res = supabase.table("users").insert(users_to_insert).execute()
         return {"message": f"{len(users_to_insert)} user berhasil diimport", "data": res.data}
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        error_msg = str(e)
+        if "23505" in error_msg:
+            import re
+            match = re.search(r"Key \((.*?)\)=\((.*?)\) already exists", error_msg)
+            if match:
+                field = match.group(1).capitalize()
+                val = match.group(2)
+                error_msg = f"Gagal Import: {field} '{val}' sudah pernah terdaftar di sistem. Mohon ganti dengan yang baru."
+            else:
+                error_msg = "Gagal Import: Terdapat Username atau Email yang sudah terdaftar."
+        raise HTTPException(status_code=400, detail=error_msg)
 
 @router.put("/{user_id}")
 def update_user(user_id: str, req: UserUpdate):

@@ -59,6 +59,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+import traceback
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    with open("error_log.txt", "a") as f:
+        f.write(f"ERROR on {request.url}:\n")
+        f.write(traceback.format_exc())
+        f.write("\n")
+    return {"detail": "Internal Server Error"}
+
 # Extreme Optimization: Compress JSON responses to save bandwidth and speed up load times
 # app.add_middleware(GZipMiddleware, minimum_size=500)
 
