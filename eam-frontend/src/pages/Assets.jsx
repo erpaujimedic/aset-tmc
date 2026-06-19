@@ -723,10 +723,10 @@ export default function Assets() {
     try {
       if (isEditing) {
         await api.put(`/assets/${originalAssetId}`, form);
-        Swal.fire({title: 'Success', text: 'Asset updated!', icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 3000});
+        Swal.fire('Success', 'Asset updated!', 'success');
       } else {
         await api.post('/assets', form);
-        Swal.fire({title: 'Success', text: 'Asset created!', icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 3000});
+        Swal.fire('Success', 'Asset created!', 'success');
       }
       mutateAssets(); // revalidate
     } catch (err) {
