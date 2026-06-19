@@ -5,8 +5,12 @@ import App from './App.jsx'
 // 🔥 INI YANG PALING PENTING BIAR TAILWIND NYALA 🔥
 import './index.css' 
 
+import ErrorBoundary from './components/ui/ErrorBoundary.jsx'
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </React.StrictMode>,
 )

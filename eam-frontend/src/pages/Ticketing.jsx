@@ -9,6 +9,7 @@ import Select from 'react-select';
 import Swal from 'sweetalert2';
 import Flatpickr from "react-flatpickr";
 import "flatpickr/dist/themes/light.css";
+import ShimmerLoader from '../components/ui/ShimmerLoader';
 
 export default function Ticketing() {
   const { t } = useI18nStore();
@@ -221,7 +222,14 @@ export default function Ticketing() {
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
-    if (!newTicket.title || !newTicket.branch || !newTicket.ticket_type) return;
+    if (!newTicket.title || !newTicket.branch || !newTicket.ticket_type) {
+      Swal.fire({
+          icon: 'warning', 
+          title: 'Validation Error', 
+          text: 'Kolom Title, Branch, dan Type wajib diisi!'
+      });
+      return;
+    }
     setIsSubmitting(true);
     try {
       let photoUrl = null;
@@ -764,11 +772,8 @@ export default function Ticketing() {
       </div>
 
       {loading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="flex flex-col items-center justify-center gap-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#286086]"></div>
-            <span className="text-sm font-bold text-slate-500">{t('loadingData') || 'Memuat Data...'}</span>
-          </div>
+        <div className="flex-1 p-4 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <ShimmerLoader type={viewMode === 'table' ? 'table' : 'card'} rows={4} />
         </div>
       ) : viewMode === 'table' ? (
         <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col min-h-0">
@@ -1116,9 +1121,8 @@ export default function Ticketing() {
       >
         {selectedTicketForHistory && (
           loadingHistory ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-3">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#286086]"></div>
-              <span className="text-sm font-bold text-slate-500">{t('loadingData') || 'Memuat Data...'}</span>
+            <div className="py-4">
+              <ShimmerLoader rowCount={3} columnCount={2} />
             </div>
           ) : (
             <div className="space-y-6">

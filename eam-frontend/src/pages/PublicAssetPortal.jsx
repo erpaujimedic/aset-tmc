@@ -46,52 +46,33 @@ export default function PublicAssetPortal() {
 
   const fetchData = async () => {
     try {
-      // 1. Fetch Asset
-      const assetRes = await api.get('/assets');
-      const match = assetRes.data.data.find(a => String(a.id) === String(id));
+      const res = await api.get(`/public/asset-info/${id}`);
+      const data = res.data;
 
-      if (!match) {
-        setError('Asset not found');
-        setLoading(false);
-        return;
+      setAsset(data.asset);
+      setFormBranch(data.asset.branch);
+      setFormStatus(data.asset.status);
+
+      const filteredMov = data.movements.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+      setHistory(filteredMov);
+
+      const filteredTick = data.tickets.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+      setTickets(filteredTick);
+
+      setCalibrations(data.calibrations);
+
+      const publicModule = data.permissions.find(m => m.module === 'Public QR Portal');
+      if (publicModule) {
+        const permMap = {};
+        publicModule.actions.forEach(a => permMap[a] = true);
+        setPermissions(permMap);
       }
-      setAsset(match);
-      setFormBranch(match.branch);
-      setFormStatus(match.status);
-
-      // 2. Fetch movements
-      api.get('/movements').then(res => {
-        const filteredMov = res.data.data.filter(m => m.asset_id === id).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
-        setHistory(filteredMov);
-      }).catch(() => {});
-      
-      // 3. Fetch tickets
-      api.get('/tickets').then(res => {
-        const filteredTick = res.data.data.filter(t => t.asset_id === id).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
-        setTickets(filteredTick);
-      }).catch(() => {});
-
-      // 4. Fetch calibrations
-      api.get('/calibrations').then(res => {
-        const filteredCal = res.data.data.filter(c => c.asset_id === id);
-        setCalibrations(filteredCal);
-      }).catch(() => {});
-
-      // 5. Fetch Public Permissions
-      api.get('/permissions/Public Access').then(res => {
-        const perms = res.data.data;
-        const publicModule = perms.find(m => m.module === 'Public QR Portal');
-        if (publicModule) {
-          const permMap = {};
-          publicModule.actions.forEach(a => { permMap[a.name] = a.enabled; });
-          setPermissions(permMap);
-        }
-      }).catch(() => {});
-
-    } catch(err) {
-      setError('Failed to load asset details');
+    } catch (error) {
+      console.error("Public Portal Error", error);
+      setError('Asset not found or failed to load');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const captureGps = () => {

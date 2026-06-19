@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
 from typing import Optional, List
 from app.database import supabase
@@ -44,7 +45,7 @@ def get_all_movements(branch: Optional[str] = None, limit: Optional[int] = None)
     return {"data": all_data}
 
 @router.post("/dispatch")
-async def dispatch_asset(
+def dispatch_asset(
     tracking_code: str = Form(...),
     asset_ids: str = Form(...),
     purpose: str = Form(...),
@@ -56,7 +57,7 @@ async def dispatch_asset(
     purpose_detail: Optional[str] = Form(None),
     expected_return_date: Optional[str] = Form(None),
     proof_image: Optional[UploadFile] = File(None),
-    background_tasks: BackgroundTasks = BackgroundTasks()
+    background_tasks: BackgroundTasks = BackgroundTasks(), request: Request = None
 ):
     """Mencatat pengiriman aset (Dispatch) secara bulk dan upload bukti ke GDrive"""
     try:
@@ -159,11 +160,11 @@ async def dispatch_asset(
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/upload-proof")
-async def upload_document_proof(
+def upload_document_proof(
     tracking_code: str = Form(...),
     sender_name: str = Form(...),
     proof_image: UploadFile = File(...),
-    background_tasks: BackgroundTasks = BackgroundTasks()
+    background_tasks: BackgroundTasks = BackgroundTasks(), request: Request = None
 ):
     """Upload signed document for a pending movement request"""
     try:
@@ -231,12 +232,12 @@ async def upload_document_proof(
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/receive")
-async def receive_asset(
+def receive_asset(
     tracking_code: str = Form(...),
     receiver_name: str = Form(...),
     notes: Optional[str] = Form(None),
     proof_image: UploadFile = File(...),
-    background_tasks: BackgroundTasks = BackgroundTasks()
+    background_tasks: BackgroundTasks = BackgroundTasks(), request: Request = None
 ):
     """Mencatat penerimaan aset dan upload bukti ke GDrive"""
     try:
@@ -410,7 +411,7 @@ class PublicUpdatePayload(BaseModel):
     updater_name: Optional[str] = "Anonymous Scanner"
 
 @router.post("/public-update")
-async def public_update_asset(payload: PublicUpdatePayload):
+def public_update_asset(payload: PublicUpdatePayload):
     from fastapi_cache import FastAPICache
     try:
         # Update assets table
@@ -448,7 +449,7 @@ async def public_update_asset(payload: PublicUpdatePayload):
         supabase.table("movement_logs").insert(log_data).execute()
 
         # Clear cache so updates show up immediately in list & dashboard
-        await FastAPICache.clear()
+        asyncio.run(FastAPICache.clear())
 
         return {"message": "Success"}
     except Exception as e:
@@ -465,7 +466,7 @@ class MutateRequest(BaseModel):
     mutated_by: str
 
 @router.post("/mutate")
-async def mutate_asset(req: MutateRequest):
+def mutate_asset(req: MutateRequest):
     try:
         tracking_code = f"MUT-{uuid.uuid4().hex[:8].upper()}"
         
@@ -505,7 +506,7 @@ async def mutate_asset(req: MutateRequest):
 
 
 @router.post("/borrow")
-async def borrow_asset(
+def borrow_asset(
     tracking_code: str = Form(...),
     asset_ids: str = Form(...),
     purpose: str = Form(...),
@@ -514,7 +515,7 @@ async def borrow_asset(
     borrower_name: str = Form(...),
     expected_return_date: str = Form(...),
     proof_image: Optional[UploadFile] = File(None),
-    background_tasks: BackgroundTasks = BackgroundTasks()
+    background_tasks: BackgroundTasks = BackgroundTasks(), request: Request = None
 ):
     """Pengajuan Peminjaman Aset antar cabang"""
     try:
@@ -777,7 +778,7 @@ def generate_docx_form(tracking_code: str):
 
 
 @router.post("/receive_borrow")
-async def receive_borrow_asset(
+def receive_borrow_asset(
     tracking_code: str = Form(...),
     movement_ids: str = Form(None),
     receiver_name: str = Form(...),
@@ -825,14 +826,15 @@ async def receive_borrow_asset(
 
 
 @router.post("/return_borrow")
-async def return_borrow_asset(
+def return_borrow_asset(
     tracking_code: str = Form(...),
     movement_ids: str = Form(None),
     returner_name: str = Form(...),
     return_from: str = Form(...),
     return_to: str = Form(None),
     notes: Optional[str] = Form(None),
-    proof_image: UploadFile = File(...)
+    proof_image: UploadFile = File(...),
+    background_tasks: BackgroundTasks = BackgroundTasks(), request: Request = None
 ):
     """Peminjam mengembalikan aset ke cabang asal/lain secara parsial (status -> Pending Return Approval)"""
     import json
@@ -850,7 +852,16 @@ async def return_borrow_asset(
         file_ext = proof_image.filename.split(".")[-1] if "." in proof_image.filename else "jpg"
         file_name_base = generate_filename("naming_format_return", tracking_code, proof_image.filename, returner_name)
         filename = f"{file_name_base}.{file_ext}" if not file_name_base.endswith(f".{file_ext}") else file_name_base
-        proof_url = upload_file_to_drive(proof_image.file, filename, proof_image.content_type)
+        filename = filename.replace("/", "_").replace("\\", "_")
+        
+        temp_dir = "uploads/temp"
+        os.makedirs(temp_dir, exist_ok=True)
+        temp_path = os.path.join(temp_dir, f"{uuid.uuid4()}_{filename}")
+        with open(temp_path, "wb") as buffer:
+            shutil.copyfileobj(proof_image.file, buffer)
+            
+        proof_url = "UPLOADING..."
+        updates_for_bg = []
 
         for movement in mov.data:
             is_roadshow = return_to and return_to != movement['from_location']
@@ -886,7 +897,7 @@ async def return_borrow_asset(
 
 
 @router.post("/complete_return")
-async def complete_return_asset(
+def complete_return_asset(
     tracking_code: str = Form(...),
     movement_ids: str = Form(None),
     receiver_name: str = Form(...),
@@ -1031,7 +1042,7 @@ def process_approval(
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete("/{tracking_code}")
-async def delete_movement(tracking_code: str):
+def delete_movement(tracking_code: str):
     """Menghapus data pergerakan (Admin Only)"""
     try:
         movs = supabase.table("asset_movements").select("id").like("tracking_code", f"{tracking_code}%").execute()
@@ -1046,8 +1057,8 @@ async def delete_movement(tracking_code: str):
         # Delete movements
         supabase.table("asset_movements").delete().in_("id", mov_ids).execute()
         
-        await FastAPICache.clear()
-        await FastAPICache.clear(namespace="assets")
+        asyncio.run(FastAPICache.clear())
+        asyncio.run(FastAPICache.clear(namespace="assets"))
         return {"message": "Data berhasil dihapus"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

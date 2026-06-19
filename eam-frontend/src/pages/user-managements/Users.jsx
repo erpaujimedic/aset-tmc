@@ -7,6 +7,7 @@ import api from '../../services/api';
 import useMasterStore from '../../store/masterStore';
 import useI18nStore from '../../store/i18nStore';
 import useAuthStore from '../../store/authStore';
+import ShimmerLoader from '../../components/ui/ShimmerLoader';
 
 export default function Users() {
   const { t } = useI18nStore();
@@ -21,6 +22,7 @@ export default function Users() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
 
   // Import States
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -58,9 +60,17 @@ export default function Users() {
   };
 
   useEffect(() => {
-    loadUsers();
-    if (branches.length === 0) fetchBranches();
-    fetchSystemRoles().then(data => setRoles(data || [])).catch(console.error);
+    const init = async () => {
+      try {
+        if (branches.length === 0) await fetchBranches();
+        const rolesData = await fetchSystemRoles();
+        setRoles(rolesData || []);
+      } catch (err) {
+        console.error(err);
+      }
+      await loadUsers();
+    };
+    init();
   }, []);
 
   const handleDownloadTemplate = async () => {
@@ -125,6 +135,41 @@ export default function Users() {
 
     return matchSearch && matchRole && matchStatus && matchBranch;
   });
+
+  const sortedUsers = [...filteredUsers].sort((a, b) => {
+    if (!sortConfig) return 0;
+    const { key, direction } = sortConfig;
+    let aVal = a[key] || '';
+    let bVal = b[key] || '';
+
+    if (key === 'lastLogin') {
+      aVal = aVal === 'Never' ? 0 : new Date(aVal).getTime();
+      bVal = bVal === 'Never' ? 0 : new Date(bVal).getTime();
+    }
+
+    if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+    if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const renderSortIcon = (key) => {
+    if (!sortConfig || sortConfig.key !== key) {
+      return <svg className="w-3 h-3 ml-1 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>;
+    }
+    return sortConfig.direction === 'asc' ? (
+      <svg className="w-3 h-3 ml-1 text-[#286086]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
+    ) : (
+      <svg className="w-3 h-3 ml-1 text-[#286086]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+    );
+  };
 
   return (
     <div className="p-6 h-full flex flex-col bg-slate-50">
@@ -306,16 +351,26 @@ export default function Users() {
           <table className="w-full text-left border-collapse">
             <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-sm shadow-sm">
               <tr className="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-bold">
-                <th className="px-6 py-4">User</th>
-                <th className="px-6 py-4">Branch Access</th>
-                <th className="px-6 py-4">Role</th>
-                <th className="px-6 py-4">Last Login</th>
-                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4 cursor-pointer hover:bg-slate-100 group transition-colors" onClick={() => handleSort('name')}>
+                  <div className="flex items-center">User {renderSortIcon('name')}</div>
+                </th>
+                <th className="px-6 py-4 cursor-pointer hover:bg-slate-100 group transition-colors" onClick={() => handleSort('branch')}>
+                  <div className="flex items-center">Branch Access {renderSortIcon('branch')}</div>
+                </th>
+                <th className="px-6 py-4 cursor-pointer hover:bg-slate-100 group transition-colors" onClick={() => handleSort('role')}>
+                  <div className="flex items-center">Role {renderSortIcon('role')}</div>
+                </th>
+                <th className="px-6 py-4 cursor-pointer hover:bg-slate-100 group transition-colors" onClick={() => handleSort('lastLogin')}>
+                  <div className="flex items-center">Last Login {renderSortIcon('lastLogin')}</div>
+                </th>
+                <th className="px-6 py-4 cursor-pointer hover:bg-slate-100 group transition-colors" onClick={() => handleSort('status')}>
+                  <div className="flex items-center">Status {renderSortIcon('status')}</div>
+                </th>
                 <th className="px-6 py-4 text-center">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
-              {filteredUsers.map((user) => (
+              {sortedUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-blue-50/30 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -345,7 +400,7 @@ export default function Users() {
                     {user.role}
                   </td>
                   <td className="px-6 py-4 text-slate-500 text-xs font-medium">
-                    {user.lastLogin}
+                    {user.lastLogin !== 'Never' ? new Date(user.lastLogin).toLocaleString('id-ID', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Never'}
                   </td>
                   <td className="px-6 py-4">
                     {user.status !== 'Not Active' ? (
@@ -409,11 +464,8 @@ export default function Users() {
               
               {loading && (
                 <tr>
-                  <td colSpan="6" className="p-12 text-center">
-                    <div className="flex flex-col items-center justify-center gap-3">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#286086]"></div>
-                      <span className="text-sm font-bold text-slate-500">{t('loadingData') || 'Memuat Data...'}</span>
-                    </div>
+                  <td colSpan="6" className="p-0">
+                    <ShimmerLoader rowCount={5} columnCount={6} />
                   </td>
                 </tr>
               )}

@@ -1,7 +1,9 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from typing import Optional
 import bcrypt
 from app.database import supabase
+from app.core.security import create_access_token
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -78,7 +80,16 @@ def verify_login(req: LoginRequest):
     if not verify_password(req.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Password salah!")
         
-    # Sementara menggunakan dummy token. Idealnya pakai pyjwt
+    # Update last_login
+    try:
+        from datetime import datetime, timezone
+        now_iso = datetime.now(timezone.utc).isoformat()
+        supabase.table("users").update({"last_login": now_iso}).eq("id", user["id"]).execute()
+    except Exception:
+        pass
+
+    access_token = create_access_token(data={"sub": user["id"], "email": user["email"], "role": user["role"]})
+
     return {
         "id": user["id"],
         "email": user["email"],
@@ -86,7 +97,7 @@ def verify_login(req: LoginRequest):
         "fullName": user["full_name"],
         "role": user["role"],
         "branch": user["branch"],
-        "token": f"token-{user['id']}" 
+        "token": access_token
     }
 
 @router.post("/register")
@@ -103,7 +114,8 @@ def register(req: RegisterRequest):
             "username": req.username,
             "role": req.role,
             "branch": req.branch,
-            "password_hash": hashed_password
+            "password_hash": hashed_password,
+            "status": "Pending"
         }).execute()
         
         return {"message": "Berhasil registrasi", "data": response.data}

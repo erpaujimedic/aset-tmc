@@ -6,6 +6,7 @@ import api from '../services/api';
 import useI18nStore from '../store/i18nStore';
 import useAuthStore from '../store/authStore';
 import BaseModal from '../components/ui/BaseModal';
+import ShimmerLoader from '../components/ui/ShimmerLoader';
 import Flatpickr from "react-flatpickr";
 import "flatpickr/dist/themes/light.css";
 
@@ -559,11 +560,8 @@ export default function Calibrations() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan="5" className="p-12 text-center">
-                    <div className="flex flex-col items-center justify-center gap-3">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#286086]"></div>
-                      <span className="text-sm font-bold text-slate-500">{t('loadingData') || 'Memuat Data...'}</span>
-                    </div>
+                  <td colSpan="5" className="p-0">
+                    <ShimmerLoader rowCount={5} columnCount={5} />
                   </td>
                 </tr>
               ) : paginatedCals.length === 0 ? (

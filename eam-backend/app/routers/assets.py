@@ -365,11 +365,12 @@ async def get_assets(branch: Optional[str] = None, status: Optional[str] = None,
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("")
-async def create_asset(asset: AssetCreate):
+async def create_asset(asset: AssetCreate, request: Request):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
         asset_dict = asset.dict()
+        asset_dict["created_by_name"] = request.headers.get("X-User-Name", "System")
         cat_raw = str(asset_dict.get("category", "")).upper()
         if "FFF" in cat_raw or "FURNITURE" in cat_raw:
             asset_dict["category"] = "Furniture"

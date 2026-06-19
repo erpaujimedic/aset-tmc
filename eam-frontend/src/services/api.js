@@ -21,6 +21,11 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    if (user) {
+      config.headers['X-User-Name'] = user.name || user.username || '';
+      config.headers['X-User-Role'] = user.role || '';
+      config.headers['X-User-Branch'] = user.branch || '';
+    }
     return config;
   },
   (error) => Promise.reject(error)
@@ -44,7 +49,17 @@ api.interceptors.response.use(
       
       // Tendang ke halaman login tanpa pake React Router, tapi cuma jika belum di login
       if (window.location.pathname !== '/') {
-        window.location.href = '/'; 
+        import('sweetalert2').then(Swal => {
+          Swal.default.fire({
+            icon: 'warning',
+            title: 'Sesi Berakhir',
+            text: 'Sesi Anda telah kedaluwarsa atau tidak valid. Silakan masuk kembali.',
+            confirmButtonColor: '#286086',
+            confirmButtonText: 'Login Kembali'
+          }).then(() => {
+            window.location.href = '/'; 
+          });
+        });
       }
     }
     return Promise.reject(error);

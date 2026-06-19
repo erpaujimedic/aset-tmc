@@ -1325,9 +1325,8 @@ export default function Assets() {
               {isAssetsLoading ? (
                 <tr>
                   <td colSpan="7" className="p-12 text-center">
-                    <div className="flex flex-col items-center justify-center gap-3">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#286086]"></div>
-                      <span className="text-sm font-bold text-slate-500">{t('loadingData') || 'Memuat Data...'}</span>
+                    <div className="p-4">
+                      <ShimmerLoader type="table" rows={5} />
                     </div>
                   </td>
                 </tr>
@@ -1874,7 +1873,8 @@ export default function Assets() {
                         <div><span className="text-[10px] text-slate-400 block">No. PR</span><span className="text-xs font-bold text-slate-700">{selectedAsset.pr_number || '-'}</span></div>
                         <div><span className="text-[10px] text-slate-400 block">Penempatan (HO)</span><span className="text-xs font-bold text-slate-700">{selectedAsset.placement_location || '-'}</span></div>
                         <div><span className="text-[10px] text-slate-400 block">Nomor Rak</span><span className="text-xs font-bold text-slate-700">{selectedAsset.rack_number || '-'}</span></div>
-                        <div className="col-span-2"><span className="text-[10px] text-slate-400 block">Ruangan</span><span className="text-xs font-bold text-slate-700">{selectedAsset.room || '-'}</span></div>
+                        <div><span className="text-[10px] text-slate-400 block">Ruangan</span><span className="text-xs font-bold text-slate-700">{selectedAsset.room || '-'}</span></div>
+                        <div><span className="text-[10px] text-slate-400 block">Didaftarkan Oleh</span><span className="text-xs font-bold text-slate-700">{selectedAsset.created_by_name || '-'}</span></div>
                       </div>
                     </div>
 

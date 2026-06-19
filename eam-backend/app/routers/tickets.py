@@ -145,7 +145,7 @@ from app.services.gdrive import get_drive_service, get_or_create_folder, upload_
 from app.routers.settings import generate_filename
 
 @router.post("/upload")
-async def upload_file(
+def upload_file(
     file: UploadFile = File(...),
     module: Optional[str] = Form(None),
     asset_code: Optional[str] = Form(None),
@@ -183,7 +183,7 @@ async def upload_file(
         raise HTTPException(status_code=500, detail=f"Failed to upload file to Google Drive: {str(e)}")
 
 @router.post("")
-def create_ticket(tck: TicketCreate):
+def create_ticket(tck: TicketCreate, request: Request, background_tasks: BackgroundTasks):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
@@ -213,7 +213,7 @@ def create_ticket(tck: TicketCreate):
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/{ticket_id}/upload-signed-form")
-async def upload_signed_form(
+def upload_signed_form(
     ticket_id: str, 
     file: UploadFile = File(...), 
     user_name: str = Form("System"),
@@ -265,7 +265,7 @@ async def upload_signed_form(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/{ticket_id}")
-def update_ticket(ticket_id: str, tck: TicketUpdate):
+def update_ticket(ticket_id: str, tck: TicketUpdate, request: Request, background_tasks: BackgroundTasks):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
@@ -323,7 +323,7 @@ def get_ticket_history(ticket_id: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete("/{ticket_id}")
-def delete_ticket(ticket_id: str):
+def delete_ticket(ticket_id: str, request: Request, background_tasks: BackgroundTasks):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     try:

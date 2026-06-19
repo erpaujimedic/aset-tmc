@@ -37,6 +37,26 @@ const translations = {
     clearCache: "Clear System Cache",
     logout: "Sign Out",
     
+    // Approval & Global
+    assetMovements: "Asset Movements",
+    accountRequests: "Account Requests",
+    pendingAssetApprovals: "Pending Asset Approvals",
+    noPendingRequests: "No Pending Requests",
+    noNewUserRegistrations: "No new user registrations waiting for approval.",
+    pendingUserAccounts: "Pending User Accounts",
+    requestedBy: "Requested by",
+    purpose: "Purpose",
+    approve: "Approve",
+    reject: "Reject",
+    systemUsersStatus: "System Users Status",
+    activeOnline: "Active Online",
+    offline: "Offline",
+    securityShieldEnabled: "Security Shield Enabled",
+    globalChat: "Global Chat",
+    noMessagesYet: "No messages yet. Be the first to say hi!",
+    liveChat: "Live Chat",
+    typeMessage: "Type your message...",
+    
     // Alerts
     readyLeave: "Ready to leave?",
     logoutDesc: "You will be securely logged out of your workspace.",
@@ -400,6 +420,26 @@ const translations = {
     language: "Pengaturan Bahasa",
     clearCache: "Bersihkan Tembolok",
     logout: "Keluar Sistem",
+    
+    // Approval & Global
+    assetMovements: "Pergerakan Aset",
+    accountRequests: "Permintaan Akun",
+    pendingAssetApprovals: "Persetujuan Aset Tertunda",
+    noPendingRequests: "Tidak Ada Permintaan Tertunda",
+    noNewUserRegistrations: "Tidak ada pendaftaran pengguna baru yang menunggu persetujuan.",
+    pendingUserAccounts: "Akun Pengguna Tertunda",
+    requestedBy: "Diminta oleh",
+    purpose: "Tujuan",
+    approve: "Setujui",
+    reject: "Tolak",
+    systemUsersStatus: "Status Pengguna Sistem",
+    activeOnline: "Aktif Online",
+    offline: "Offline",
+    securityShieldEnabled: "Perisai Keamanan Aktif",
+    globalChat: "Obrolan Global",
+    noMessagesYet: "Belum ada pesan. Jadilah yang pertama menyapa!",
+    liveChat: "Obrolan Langsung",
+    typeMessage: "Ketik pesan Anda...",
     
     // Alerts
     readyLeave: "Siap untuk keluar?",

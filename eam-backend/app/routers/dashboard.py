@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, HTTPException
 from app.database import supabase
 from collections import Counter
@@ -8,7 +9,7 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 @router.get("/stats")
 @cache(expire=3600)
-async def get_dashboard_stats(branch: str = None):
+def get_dashboard_stats(branch: str = None):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
@@ -160,7 +161,7 @@ async def get_dashboard_stats(branch: str = None):
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/reset-sandbox")
-async def reset_sandbox():
+def reset_sandbox():
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
@@ -191,7 +192,7 @@ async def reset_sandbox():
         supabase.table("users").delete().eq("branch", "DUMMY_SANDBOX").neq("email", "dummy@eam.com").execute()
         
         from fastapi_cache import FastAPICache
-        await FastAPICache.clear()
+        asyncio.run(FastAPICache.clear())
         
         return {"message": "Data sandbox berhasil dibersihkan!"}
     except Exception as e:

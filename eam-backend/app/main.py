@@ -4,8 +4,12 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 import os
-from app.routers import auth, users, permissions, assets, deliveries, dashboard, movements, calibrations, tickets, setup, settings, master_components
+from app.routers import auth, users, permissions, assets, deliveries, dashboard, movements, calibrations, tickets, setup, settings, master_components, audit, public
 from app.database import supabase
+from app.dependencies import get_current_user
+from fastapi import Depends
+from app.dependencies import get_current_user
+from fastapi import Depends
 
 from contextlib import asynccontextmanager
 from redis import asyncio as aioredis
@@ -97,14 +101,16 @@ def get_master_setup_data():
         return {"branches": []}
 
 app.include_router(auth.router)
-app.include_router(users.router)
-app.include_router(permissions.router)
-app.include_router(assets.router)
-app.include_router(deliveries.router)
-app.include_router(dashboard.router)
-app.include_router(movements.router)
-app.include_router(calibrations.router)
-app.include_router(tickets.router)
-app.include_router(setup.router)
-app.include_router(settings.router)
-app.include_router(master_components.router)
+app.include_router(public.router)
+app.include_router(users.router, dependencies=[Depends(get_current_user)])
+app.include_router(permissions.router, dependencies=[Depends(get_current_user)])
+app.include_router(assets.router, dependencies=[Depends(get_current_user)])
+app.include_router(deliveries.router, dependencies=[Depends(get_current_user)])
+app.include_router(dashboard.router, dependencies=[Depends(get_current_user)])
+app.include_router(movements.router, dependencies=[Depends(get_current_user)])
+app.include_router(calibrations.router, dependencies=[Depends(get_current_user)])
+app.include_router(tickets.router, dependencies=[Depends(get_current_user)])
+app.include_router(setup.router, dependencies=[Depends(get_current_user)])
+app.include_router(settings.router, dependencies=[Depends(get_current_user)])
+app.include_router(master_components.router, dependencies=[Depends(get_current_user)])
+app.include_router(audit.router, dependencies=[Depends(get_current_user)])

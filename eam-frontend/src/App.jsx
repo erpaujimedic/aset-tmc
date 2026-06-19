@@ -21,6 +21,7 @@ const ProfileConfigurations = lazy(() => import('./pages/user-managements/Profil
 const SLASettings = lazy(() => import('./pages/settings/SLASettings'));
 const FileNamingConfig = lazy(() => import('./pages/settings/FileNamingConfig'));
 const MasterComponentSettings = lazy(() => import('./pages/MasterComponentSettings'));
+const AuditLogs = lazy(() => import('./pages/AuditLogs'));
 
 const PageFallback = () => (
   <div className="p-8 w-full h-[80vh] flex flex-col gap-8 items-center">
@@ -55,6 +56,7 @@ export default function App() {
               <Route path="/settings/sla-settings" element={<Suspense fallback={<PageFallback />}><SLASettings /></Suspense>} />
               <Route path="/settings/file-naming" element={<Suspense fallback={<PageFallback />}><FileNamingConfig /></Suspense>} />
               <Route path="/settings/master-components" element={<Suspense fallback={<PageFallback />}><MasterComponentSettings /></Suspense>} />
+              <Route path="/audit-logs" element={<Suspense fallback={<PageFallback />}><AuditLogs /></Suspense>} />
             </Route>
           </Route>
         </Routes>

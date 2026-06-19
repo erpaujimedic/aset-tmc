@@ -95,8 +95,8 @@ def get_users(branch: Optional[str] = None):
             "username": u["username"],
             "branch": u["branch"],
             "role": u["role"],
-            "status": "Active", # default for now
-            "lastLogin": "Never"
+            "status": u.get("status", "Active"),
+            "lastLogin": u.get("last_login") or "Never"
         })
     return {"data": formatted_users}
 
@@ -292,3 +292,28 @@ def reset_user_password(user_id: str):
     hashed_password = get_password_hash("admin123")
     supabase.table("users").update({"password_hash": hashed_password}).eq("id", user_id).execute()
     return {"message": "Password reset to admin123"}
+
+@router.get("/pending")
+def get_pending_users():
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database connection error")
+    res = supabase.table("users").select("*").eq("status", "Pending").execute()
+    return {"data": res.data}
+
+@router.post("/{user_id}/approve")
+def approve_user(user_id: str):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database connection error")
+    res = supabase.table("users").update({"status": "Active"}).eq("id", user_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"message": "User approved successfully"}
+
+@router.post("/{user_id}/reject")
+def reject_user(user_id: str):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database connection error")
+    res = supabase.table("users").delete().eq("id", user_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"message": "User rejected successfully"}
