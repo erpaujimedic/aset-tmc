@@ -16,6 +16,10 @@ def get_drive_service():
         return build('drive', 'v3', credentials=creds, cache_discovery=False)
         
     creds_path = os.path.join(os.getcwd(), 'credentials.json')
+    if not os.path.exists(creds_path):
+        # Fallback for Render Secret Files
+        creds_path = '/etc/secrets/credentials.json'
+        
     creds = ServiceAccountCredentials.from_service_account_file(creds_path, scopes=SCOPES)
     return build('drive', 'v3', credentials=creds, cache_discovery=False)
 
