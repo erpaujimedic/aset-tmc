@@ -232,7 +232,10 @@ async def export_ba(payload: BAPayload):
             
     doc_tpl.render(context)
     
-    with tempfile.TemporaryDirectory() as tmpdir:
+    import shutil
+    
+    tmpdir = tempfile.mkdtemp()
+    try:
         temp_docx = os.path.join(tmpdir, "temp.docx")
         temp_pdf = os.path.join(tmpdir, "temp.pdf")
         doc_tpl.save(temp_docx)
@@ -246,7 +249,7 @@ async def export_ba(payload: BAPayload):
                 python_exe = sys.executable
             
             script = f"from docx2pdf import convert; convert(r'{temp_docx}', r'{temp_pdf}')"
-            result = subprocess.run([python_exe, "-c", script], capture_output=True, text=True)
+            result = subprocess.run([python_exe, "-c", script], capture_output=True, text=True, timeout=15)
             if result.returncode != 0:
                 print("PDF Subprocess Error:", result.stderr)
                 raise Exception("Subprocess convert failed")
@@ -263,13 +266,18 @@ async def export_ba(payload: BAPayload):
             out_buf.seek(0)
             media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             filename = "Berita_Acara_Asset.docx"
+    finally:
+        try:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+        except:
+            pass
     
-        from fastapi import Response
-        return Response(
-            content=out_buf.getvalue(),
-            media_type=media_type,
-            headers={"Content-Disposition": f"attachment; filename={filename}", "Access-Control-Expose-Headers": "Content-Disposition"}
-        )
+    from fastapi import Response
+    return Response(
+        content=out_buf.getvalue(),
+        media_type=media_type,
+        headers={"Content-Disposition": f"attachment; filename={filename}", "Access-Control-Expose-Headers": "Content-Disposition"}
+    )
 
 class ExportData(BaseModel):
     headers: List[str]

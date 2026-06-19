@@ -48,9 +48,11 @@ def get_or_create_folder(service, folder_name: str, parent_id: str = ROOT_FOLDER
     
     return folder.get('id')
 
-def upload_file_to_drive(file_obj, filename: str, mime_type: str, folder_id: str) -> str:
+def upload_file_to_drive(file_obj, filename: str, mime_type: str, folder_id: str = None) -> str:
     """Uploads a file to Google Drive and makes it readable by anyone with the link."""
     service = get_drive_service()
+    if not folder_id:
+        folder_id = get_or_create_folder(service, "Logistics & Tracking")
     
     file_metadata = {
         'name': filename,

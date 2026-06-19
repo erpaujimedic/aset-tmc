@@ -30,14 +30,22 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    const originalRequest = error.config;
     if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+      // Abaikan redirect jika error berasal dari endpoint login
+      if (originalRequest && originalRequest.url && originalRequest.url.includes('/auth/verify-login')) {
+        return Promise.reject(error);
+      }
+
       console.warn('⚠️ Sesi berakhir atau tidak valid. Memaksa logout...');
       
       // Bersihkan state login
       useAuthStore.getState().logout();
       
-      // Tendang ke halaman login tanpa pake React Router (karena ini di luar komponen)
-      window.location.href = '/'; 
+      // Tendang ke halaman login tanpa pake React Router, tapi cuma jika belum di login
+      if (window.location.pathname !== '/') {
+        window.location.href = '/'; 
+      }
     }
     return Promise.reject(error);
   }

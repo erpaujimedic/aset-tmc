@@ -59,6 +59,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi.responses import JSONResponse
 import traceback
 
 @app.exception_handler(Exception)
@@ -67,7 +68,7 @@ async def global_exception_handler(request, exc):
         f.write(f"ERROR on {request.url}:\n")
         f.write(traceback.format_exc())
         f.write("\n")
-    return {"detail": "Internal Server Error"}
+    return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
 # Extreme Optimization: Compress JSON responses to save bandwidth and speed up load times
 # app.add_middleware(GZipMiddleware, minimum_size=500)

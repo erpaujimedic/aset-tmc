@@ -69,6 +69,8 @@ export default function AssetMovements() {
   // Forms state
   const [isBorrowingMode, setIsBorrowingMode] = useState(false);
   const [assetSearchTerm, setAssetSearchTerm] = useState('');
+  const [isUploadProofModalOpen, setIsUploadProofModalOpen] = useState(false);
+  const [uploadProofForm, setUploadProofForm] = useState({ proof_image: null });
 
   const [dispatchForm, setDispatchForm] = useState({
     tracking_code: `TRX-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -192,7 +194,6 @@ export default function AssetMovements() {
     if (!dispatchForm.sender_name || !dispatchForm.sender_name.trim()) {
       return Swal.fire('Validation Error', 'Nama pengirim wajib diisi!', 'warning');
     }
-    if (!dispatchForm.proof_image) return Swal.fire('Error', 'Foto Bukti Pengirim Wajib Diunggah!', 'error');
 
     const finalToLocation = dispatchForm.purpose === 'Onsite Project' && dispatchForm.onsite_detail 
       ? `${dispatchForm.to_location} - ${dispatchForm.onsite_detail}` 
@@ -253,7 +254,7 @@ export default function AssetMovements() {
     try {
       await api.post('/movements/dispatch', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       Swal.fire('Sukses!', 'Aset berhasil dikirim.', 'success');
-      generatePDF(dispatchForm);
+      window.open(`${import.meta.env.VITE_API_URL}/movements/generate-form/${dispatchForm.tracking_code}?t=${Date.now()}`, '_blank');
       setIsDispatchModalOpen(false);
       setDispatchForm({...dispatchForm, tracking_code: `TRX-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`, asset_ids: [], proof_image: null, onsite_detail: ''});
       mutateMovements();
@@ -261,6 +262,27 @@ export default function AssetMovements() {
     } catch (err) {
       mutateMovements(); // Revert optimistic update on error
       Swal.fire('Error', err.response?.data?.detail || 'Terjadi kesalahan', 'error');
+    }
+  };
+
+  const handleUploadProofSubmit = async (e) => {
+    e.preventDefault();
+    if (!uploadProofForm.proof_image) return Swal.fire('Error', 'File Dokumen Wajib Diunggah', 'warning');
+
+    const formData = new FormData();
+    formData.append('tracking_code', selectedMovement.tracking_code.split('-').slice(0, 3).join('-'));
+    formData.append('sender_name', user?.name || 'User');
+    formData.append('proof_image', uploadProofForm.proof_image);
+
+    Swal.fire({ title: 'Mengunggah...', text: 'Harap tunggu...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    try {
+      await api.post('/movements/upload-proof', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      Swal.fire('Sukses', 'Dokumen TTD berhasil diunggah! Tiket sekarang aktif menunggu persetujuan.', 'success');
+      setIsUploadProofModalOpen(false);
+      setUploadProofForm({ proof_image: null });
+      mutateMovements();
+    } catch (err) {
+      Swal.fire('Error', err.response?.data?.detail || 'Gagal mengunggah dokumen', 'error');
     }
   };
 
@@ -942,8 +964,15 @@ export default function AssetMovements() {
                     ))}
                   </div>
                   
-                  {/* Action Buttons at bottom */}
                   <div className="pt-4 border-t border-slate-100 mt-4 shrink-0 flex flex-col gap-2">
+                    <button onClick={() => window.open(`${import.meta.env.VITE_API_URL}/movements/generate-form/${selectedMovement.tracking_code}?t=${Date.now()}`, '_blank')} className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all text-xs uppercase tracking-widest">
+                      Print Form
+                    </button>
+                    {selectedMovement.status === 'Menunggu Dokumen TTD' && (
+                      <button onClick={() => setIsUploadProofModalOpen(true)} className="w-full bg-amber-500 hover:bg-amber-600 text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all text-xs uppercase tracking-widest">
+                        Upload TTD
+                      </button>
+                    )}
                     {/* Mark Received Button if in transit */}
                     {selectedMovement.status === 'In Transit' && canReceive && (
                       <button onClick={() => setIsReceiveModalOpen(true)} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all text-xs uppercase tracking-widest">
@@ -1163,16 +1192,35 @@ export default function AssetMovements() {
             </div>
           </div>
           <div>
-            <label className="block text-xs font-bold text-slate-600 mb-2">{t('proofImageMandatory')}</label>
+            <label className="block text-xs font-bold text-slate-600 mb-2">Dokumen Form (Opsional, dapat diunggah nanti)</label>
             <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 hover:border-[#286086]/50 transition-all group">
               <div className="flex flex-col items-center justify-center pt-5 pb-6">
                 <svg className="w-8 h-8 mb-3 text-slate-400 group-hover:text-[#286086] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
                 <p className="mb-1 text-sm text-slate-500 font-bold"><span className="text-[#286086]">Click to upload</span> or drag and drop</p>
                 <p className="text-xs text-slate-400 font-medium">PNG, JPG or JPEG (MAX. 5MB)</p>
               </div>
-              <input required={!dispatchForm.proof_image} type="file" accept="image/*" onChange={e => setDispatchForm({...dispatchForm, proof_image: e.target.files[0]})} className="hidden" />
+              <input type="file" accept="image/*,application/pdf" onChange={e => setDispatchForm({...dispatchForm, proof_image: e.target.files[0]})} className="hidden" />
             </label>
             {dispatchForm.proof_image && <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold border border-emerald-100"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg> {dispatchForm.proof_image.name}</div>}
+          </div>
+        </form>
+      </BaseModal>
+
+      {/* UPLOAD PROOF MODAL */}
+      <BaseModal isOpen={isUploadProofModalOpen} onClose={() => setIsUploadProofModalOpen(false)} title="Upload Dokumen Tanda Tangan" maxWidth="max-w-md">
+        <form onSubmit={handleUploadProofSubmit} className="space-y-4">
+          <div className="bg-blue-50 text-blue-800 p-4 rounded-xl border border-blue-200 text-sm">
+            Silakan unggah foto/scan formulir yang telah ditandatangani untuk tiket <strong>{selectedMovement?.tracking_code}</strong>.
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Dokumen Form (Wajib)</label>
+            <input required type="file" accept="image/*,application/pdf" onChange={e => setUploadProofForm({proof_image: e.target.files[0]})} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700" />
+          </div>
+
+          <div className="flex justify-end pt-4 border-t border-slate-100 gap-3">
+            <button type="button" onClick={() => setIsUploadProofModalOpen(false)} className="px-5 py-2 font-bold text-sm text-slate-500 rounded-lg hover:bg-slate-100">Batal</button>
+            <button type="submit" className="px-5 py-2 font-bold text-sm bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700">Upload Dokumen</button>
           </div>
         </form>
       </BaseModal>
