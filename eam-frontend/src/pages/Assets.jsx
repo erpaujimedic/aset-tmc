@@ -262,7 +262,7 @@ export default function Assets() {
 
   const openAddModal = () => {
     const isAdminSystem = ['Master Admin', 'Admin System'].includes(user?.role);
-    setForm({ id: '', name: '', category: '', branch: isAdminSystem ? '' : user?.branch, department: '', assignee: '', status: 'Active', details: '' });
+    setForm({ id: '', name: '', category: '', branch: isAdminSystem ? '' : user?.branch, department: '', assignee: '', status: 'Active', details: '', room: '', condition: 'BAGUS & DIGUNAKAN', photo_url: '', brand: '', serial_number: '', user_name: '', user_phone: '', pr_number: '', placement_location: '', rack_number: '', calibration_doc_url: '' });
     setIsEditing(false);
     setOriginalAssetId(null);
     setAddMode('single');
@@ -731,7 +731,9 @@ export default function Assets() {
       mutateAssets(); // revalidate
     } catch (err) {
       mutateAssets(); // rollback
-      Swal.fire('Error', err.response?.data?.detail || 'An error occurred', 'error');
+      const detail = err.response?.data?.detail;
+      const errMsg = Array.isArray(detail) ? detail.map(d => `${d.loc.join('.')}: ${d.msg}`).join(', ') : (detail || 'An error occurred');
+      Swal.fire('Error', errMsg, 'error');
     }
   };
 
