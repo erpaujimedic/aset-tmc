@@ -11,6 +11,9 @@ ROOT_FOLDER_ID = "1bD5S3WzwYers1KA_iPcxNBD-4zSZKlUZ"
 
 def get_drive_service():
     token_path = os.path.join(os.getcwd(), 'token.json')
+    if not os.path.exists(token_path):
+        token_path = '/etc/secrets/token.json'
+        
     if os.path.exists(token_path):
         creds = OAuthCredentials.from_authorized_user_file(token_path, SCOPES)
         return build('drive', 'v3', credentials=creds, cache_discovery=False)
