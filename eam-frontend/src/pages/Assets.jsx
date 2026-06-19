@@ -141,7 +141,7 @@ export default function Assets() {
         
         Swal.fire({ title: 'Mengupload Foto...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         try {
-          const res = await api.post('/tickets/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+          const res = await api.postForm('/tickets/upload', formData);
           const baseUrl = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api$/, '') : 'http://127.0.0.1:8000';
           const returnedUrl = res.data.url;
           const fullUrl = returnedUrl.startsWith('http') ? returnedUrl : `${baseUrl}${returnedUrl}`;
@@ -244,9 +244,7 @@ export default function Assets() {
     });
 
     try {
-      const res = await api.post('/tickets/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      const res = await api.postForm('/tickets/upload', formData);
       const baseUrl = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api$/, '') : 'http://127.0.0.1:8000';
       const returnedUrl = res.data.url;
       const fullUrl = returnedUrl.startsWith('http') ? returnedUrl : `${baseUrl}${returnedUrl}`;
