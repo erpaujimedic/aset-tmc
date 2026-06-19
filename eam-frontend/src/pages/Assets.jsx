@@ -262,7 +262,7 @@ export default function Assets() {
 
   const openAddModal = () => {
     const isAdminSystem = ['Master Admin', 'Admin System'].includes(user?.role);
-    setForm({ id: '', name: '', category: '', branch: isAdminSystem ? '' : user?.branch, department: '', assignee: '', status: 'Active', details: '', room: '', condition: 'BAGUS & DIGUNAKAN', photo_url: '', brand: '', serial_number: '', user_name: '', user_phone: '', pr_number: '', placement_location: '', rack_number: '', calibration_doc_url: '' });
+    setForm({ id: '', name: '', category: '', branch: isAdminSystem ? '' : user?.branch, department: '', assignee: '', status: 'Active', details: '', room: '', condition: 'BAGUS & DIGUNAKAN', photo_url: '', brand: '', serial_number: '', user_name: '', user_phone: '', pr_number: '', placement_location: '', rack_number: '', calibration_doc_url: '', is_labeled: false });
     setIsEditing(false);
     setOriginalAssetId(null);
     setAddMode('single');
@@ -1082,10 +1082,12 @@ export default function Assets() {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
               Cetak BA
             </button>
-            <button onClick={handleBulkToggleLabel} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
-              Tandai Dilabeli
-            </button>
+            {isAdminSystem && (
+              <button onClick={handleBulkToggleLabel} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                Tandai Dilabeli
+              </button>
+            )}
 
             {canDelete && (
               <button onClick={handleBulkDelete} className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors">
