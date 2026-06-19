@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Request
 from fastapi.responses import StreamingResponse
 from app.database import supabase
 from pydantic import BaseModel
