@@ -254,7 +254,7 @@ export default function AssetMovements() {
     try {
       await api.post('/movements/dispatch', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       Swal.fire('Sukses!', 'Aset berhasil dikirim.', 'success');
-      window.open(`${import.meta.env.VITE_API_URL}/movements/generate-form/${dispatchForm.tracking_code}?t=${Date.now()}`, '_blank');
+      api.downloadFile(`/movements/generate-form/${dispatchForm.tracking_code}?t=${Date.now()}`, 'Form_Permintaan.docx');
       setIsDispatchModalOpen(false);
       setDispatchForm({...dispatchForm, tracking_code: `TRX-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`, asset_ids: [], proof_image: null, onsite_detail: ''});
       mutateMovements();
@@ -965,7 +965,7 @@ export default function AssetMovements() {
                   </div>
                   
                   <div className="pt-4 border-t border-slate-100 mt-4 shrink-0 flex flex-col gap-2">
-                    <button onClick={() => window.open(`${import.meta.env.VITE_API_URL}/movements/generate-form/${selectedMovement.tracking_code}?t=${Date.now()}`, '_blank')} className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all text-xs uppercase tracking-widest">
+                    <button onClick={() => api.downloadFile(`/movements/generate-form/${selectedMovement.tracking_code}?t=${Date.now()}`, 'Form_Permintaan.docx')} className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all text-xs uppercase tracking-widest">
                       Print Form
                     </button>
                     {selectedMovement.status === 'Menunggu Dokumen TTD' && (

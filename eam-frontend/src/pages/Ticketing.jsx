@@ -257,7 +257,7 @@ export default function Ticketing() {
       
       if (createdTicket && createdTicket.id) {
         // Automatically download the ISO .docx form from the backend
-        window.open(`${api.defaults.baseURL}/tickets/${createdTicket.id}/download-iso-form`, '_blank');
+        api.downloadFile(`/tickets/${createdTicket.id}/download-iso-form`, `ISO_Form_${createdTicket.id}.docx`);
       }
 
       setCreateModalOpen(false);
