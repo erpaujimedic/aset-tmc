@@ -16,7 +16,7 @@ def get_public_asset_info(asset_id: str):
     asset = res_asset.data[0]
 
     # 2. Get Movements
-    res_movements = supabase.table("movements").select("*").eq("asset_id", asset_id).execute()
+    res_movements = supabase.table("asset_movements").select("*").eq("asset_id", asset_id).execute()
     movements = res_movements.data
 
     # 3. Get Tickets
@@ -28,7 +28,7 @@ def get_public_asset_info(asset_id: str):
     calibrations = res_calibrations.data
 
     # 5. Get Public Permissions
-    res_perms = supabase.table("permissions").select("*").eq("role_name", "Public Access").execute()
+    res_perms = supabase.table("role_permissions").select("*").eq("role_name", "Public Access").execute()
     permissions = res_perms.data
 
     return {
