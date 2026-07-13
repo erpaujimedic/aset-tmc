@@ -722,7 +722,7 @@ async function submitManpowerForm() {
         payload.fileStr = isMed ? await getBase64(fileStr) : null;
 
         const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        const API_BASE_URL = isLocal ? "http://127.0.0.1:5002" : "https://most-engine-backend.onrender.com";
+        const API_BASE_URL = isLocal ? "http://127.0.0.1:8000" : "";
 
         let response = await fetch(API_BASE_URL + "/api/manpower/register", {
             method: 'POST',
