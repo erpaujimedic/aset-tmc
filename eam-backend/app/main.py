@@ -1,9 +1,13 @@
+import sys
+import os
+# Fix sys.path for Vercel so absolute imports like 'from app.routers...' work
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
-import os
 from app.routers import auth, users, permissions, assets, deliveries, dashboard, movements, calibrations, tickets, setup, settings, master_components, audit, public
 from app.database import supabase
 from app.dependencies import get_current_user
@@ -85,7 +89,7 @@ app.mount("/api/uploads", StaticFiles(directory="uploads"), name="uploads")
 def read_root():
     return {"message": "Welcome to EAM System API"}
 
-@app.get("/master/setup-data")
+@app.get("/api/master/setup-data")
 def get_master_setup_data():
     if not supabase:
         return {"branches": []}
