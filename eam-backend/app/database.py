@@ -16,7 +16,7 @@ else:
 
 # MOST Supabase Initialization (IdP & Branches)
 most_supabase_url = os.getenv("MOST_SUPABASE_URL", "https://kirposkynucpchdaanfg.supabase.co")
-most_supabase_key = os.getenv("MOST_SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpcnBvc2t5bnVjcGNoZGFhbmZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4NjYwMjAsImV4cCI6MjA5NDQ0MjAyMH0.O_iIS8oQ3hPC7zCq-aWfSkNh_mehCC9V4eaoAOawRpM")
+most_supabase_key = os.getenv("MOST_SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpcnBvc2t5bnVjcGNoZGFhbmZnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODg2NjAyMCwiZXhwIjoyMDk0NDQyMDIwfQ.JbMfOz3kg-3vy6LBa3OeqHN0eOHhLuC3nm_yPIAyFX8")
 
 if most_supabase_url and most_supabase_key:
     most_supabase: Client = create_client(most_supabase_url, most_supabase_key, options=ClientOptions(postgrest_client_timeout=10))
