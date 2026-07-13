@@ -21,7 +21,7 @@ from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
 from fastapi_cache.backends.inmemory import InMemoryBackend
 import asyncio
-from app.services.cron_jobs import enforce_sla_loop, check_calibration_loop
+from app.services.cron_jobs import run_sla_enforcement, run_calibration_check
 
 load_dotenv()
 
@@ -72,10 +72,7 @@ import traceback
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
-    with open("error_log.txt", "a") as f:
-        f.write(f"ERROR on {request.url}:\n")
-        f.write(traceback.format_exc())
-        f.write("\n")
+    print(f"ERROR on {request.url}:\n{traceback.format_exc()}")
     return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
 # Extreme Optimization: Compress JSON responses to save bandwidth and speed up load times
@@ -88,6 +85,21 @@ app.mount("/api/uploads", StaticFiles(directory="uploads"), name="uploads")
 @app.get("/")
 def read_root():
     return {"message": "Welcome to EAM System API"}
+
+@app.get("/api/cron/sync")
+def run_cron_sync(token: str = None):
+    # In production, verify the cron secret token
+    cron_secret = os.getenv("CRON_SECRET")
+    if cron_secret and token != cron_secret:
+        return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+        
+    sla_result = run_sla_enforcement()
+    calib_result = run_calibration_check()
+    return {
+        "message": "Cron jobs executed successfully",
+        "sla": sla_result,
+        "calibration": calib_result
+    }
 
 @app.get("/api/master/setup-data")
 def get_master_setup_data():

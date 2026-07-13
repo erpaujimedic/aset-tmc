@@ -15,3 +15,15 @@ else:
     print("WARNING: Supabase credentials not found.")
 
 # Firebase Admin Initialization removed
+
+import redis
+redis_url = os.getenv("REDIS_URL")
+if redis_url:
+    try:
+        redis_client = redis.from_url(redis_url)
+    except Exception as e:
+        print(f"WARNING: Redis connection failed: {e}")
+        redis_client = None
+else:
+    redis_client = None
+    print("WARNING: Redis credentials not found.")

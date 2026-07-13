@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request
 from app.database import supabase
 from pydantic import BaseModel
 from typing import Optional
@@ -184,7 +184,7 @@ def upload_file(
         raise HTTPException(status_code=500, detail=f"Failed to upload file to Google Drive: {str(e)}")
 
 @router.post("")
-def create_ticket(tck: TicketCreate, request: Request, background_tasks: BackgroundTasks):
+def create_ticket(tck: TicketCreate, request: Request):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
@@ -218,7 +218,7 @@ def upload_signed_form(
     ticket_id: str, 
     file: UploadFile = File(...), 
     user_name: str = Form("System"),
-    background_tasks: BackgroundTasks = BackgroundTasks()
+    request: Request = None
 ):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
@@ -256,8 +256,7 @@ def upload_signed_form(
         except Exception as e:
             print("Failed to insert history", e)
             
-        background_tasks.add_task(
-            process_async_upload,
+        process_async_upload(
             temp_path, file_name, file.content_type, "Ticketing", updates_for_bg
         )
         
@@ -266,7 +265,7 @@ def upload_signed_form(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/{ticket_id}")
-def update_ticket(ticket_id: str, tck: TicketUpdate, request: Request, background_tasks: BackgroundTasks):
+def update_ticket(ticket_id: str, tck: TicketUpdate, request: Request):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
@@ -324,7 +323,7 @@ def get_ticket_history(ticket_id: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete("/{ticket_id}")
-def delete_ticket(ticket_id: str, request: Request, background_tasks: BackgroundTasks):
+def delete_ticket(ticket_id: str, request: Request):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     try:

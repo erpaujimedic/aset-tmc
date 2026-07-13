@@ -1,5 +1,5 @@
 import asyncio
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request
 from typing import Optional, List
 from app.database import supabase
 import uuid
@@ -57,7 +57,7 @@ def dispatch_asset(
     purpose_detail: Optional[str] = Form(None),
     expected_return_date: Optional[str] = Form(None),
     proof_image: Optional[UploadFile] = File(None),
-    background_tasks: BackgroundTasks = BackgroundTasks(), request: Request = None
+    request: Request = None
 ):
     """Mencatat pengiriman aset (Dispatch) secara bulk dan upload bukti ke GDrive"""
     try:
@@ -149,8 +149,7 @@ def dispatch_asset(
                 updates_for_bg.append({"table": "movement_logs", "id": log_res.data[0]['id'], "column": "proof_url"})
 
         if proof_url == "UPLOADING...":
-            background_tasks.add_task(
-                process_async_upload,
+            process_async_upload(
                 temp_path, filename, proof_image.content_type, "Logistics & Tracking", updates_for_bg
             )
 
@@ -164,7 +163,7 @@ def upload_document_proof(
     tracking_code: str = Form(...),
     sender_name: str = Form(...),
     proof_image: UploadFile = File(...),
-    background_tasks: BackgroundTasks = BackgroundTasks(), request: Request = None
+    request: Request = None
 ):
     """Upload signed document for a pending movement request"""
     try:
@@ -222,8 +221,7 @@ def upload_document_proof(
             log_res = supabase.table("movement_logs").insert(log_data).execute()
             updates_for_bg.append({"table": "movement_logs", "id": log_res.data[0]['id'], "column": "proof_url"})
 
-        background_tasks.add_task(
-            process_async_upload,
+        process_async_upload(
             temp_path, filename, proof_image.content_type, "Logistics & Tracking", updates_for_bg
         )
 
@@ -237,7 +235,7 @@ def receive_asset(
     receiver_name: str = Form(...),
     notes: Optional[str] = Form(None),
     proof_image: UploadFile = File(...),
-    background_tasks: BackgroundTasks = BackgroundTasks(), request: Request = None
+    request: Request = None
 ):
     """Mencatat penerimaan aset dan upload bukti ke GDrive"""
     try:
@@ -312,8 +310,7 @@ def receive_asset(
             log_res = supabase.table("movement_logs").insert(log_data).execute()
             updates_for_bg.append({"table": "movement_logs", "id": log_res.data[0]['id'], "column": "proof_url"})
 
-        background_tasks.add_task(
-            process_async_upload,
+        process_async_upload(
             temp_path, filename, proof_image.content_type, "Logistics & Tracking", updates_for_bg
         )
 
@@ -515,7 +512,7 @@ def borrow_asset(
     borrower_name: str = Form(...),
     expected_return_date: str = Form(...),
     proof_image: Optional[UploadFile] = File(None),
-    background_tasks: BackgroundTasks = BackgroundTasks(), request: Request = None
+    request: Request = None
 ):
     """Pengajuan Peminjaman Aset antar cabang"""
     try:
@@ -599,11 +596,10 @@ def borrow_asset(
             if proof_url == "UPLOADING...":
                 updates_for_bg.append({"table": "movement_logs", "id": log_res.data[0]['id'], "column": "proof_url"})
 
-        if proof_url == "UPLOADING...":
-            background_tasks.add_task(
-                process_async_upload,
-                temp_path, filename, proof_image.content_type, "Logistics & Tracking", updates_for_bg
-            )
+            if proof_url == "UPLOADING...":
+                process_async_upload(
+                    temp_path, filename, proof_image.content_type, "Borrowing", updates_for_bg
+                )
 
         return {"message": "Permintaan peminjaman berhasil dikirim"}
     except Exception as e:
@@ -835,7 +831,7 @@ def return_borrow_asset(
     return_to: str = Form(None),
     notes: Optional[str] = Form(None),
     proof_image: UploadFile = File(...),
-    background_tasks: BackgroundTasks = BackgroundTasks(), request: Request = None
+    request: Request = None
 ):
     """Peminjam mengembalikan aset ke cabang asal/lain secara parsial (status -> Pending Return Approval)"""
     import json

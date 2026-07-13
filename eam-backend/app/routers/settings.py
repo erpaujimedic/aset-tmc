@@ -2,10 +2,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import json
 import os
+from app.database import redis_client
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
-
-SETTINGS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "settings.json")
 
 DEFAULT_SETTINGS = {
     "naming_format_asset_photo": "AssetPhoto_{asset_code}_{original_filename}",
@@ -24,13 +23,16 @@ def get_settings():
     return {"data": _load_settings()}
 
 def _load_settings():
-    if not os.path.exists(SETTINGS_FILE):
+    if not redis_client:
         return DEFAULT_SETTINGS
     try:
-        with open(SETTINGS_FILE, "r") as f:
-            data = json.load(f)
+        data_str = redis_client.get("system_settings")
+        if data_str:
+            data = json.loads(data_str)
             return {**DEFAULT_SETTINGS, **data}
-    except Exception:
+        return DEFAULT_SETTINGS
+    except Exception as e:
+        print(f"Error loading settings from Redis: {e}")
         return DEFAULT_SETTINGS
 
 import datetime
@@ -54,9 +56,10 @@ def generate_filename(setting_key: str, asset_code: str, original_filename: str,
 
 @router.post("")
 def update_settings(payload: SettingsUpdate):
+    if not redis_client:
+        raise HTTPException(status_code=500, detail="Redis connection error")
     try:
-        with open(SETTINGS_FILE, "w") as f:
-            json.dump(payload.settings, f, indent=4)
+        redis_client.set("system_settings", json.dumps(payload.settings))
         return {"message": "Settings saved successfully", "data": payload.settings}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
