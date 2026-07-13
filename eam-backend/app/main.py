@@ -79,8 +79,11 @@ async def global_exception_handler(request, exc):
 # app.add_middleware(GZipMiddleware, minimum_size=500)
 
 import os
-os.makedirs("uploads", exist_ok=True)
-app.mount("/api/uploads", StaticFiles(directory="uploads"), name="uploads")
+try:
+    os.makedirs("uploads", exist_ok=True)
+    app.mount("/api/uploads", StaticFiles(directory="uploads"), name="uploads")
+except Exception as e:
+    print(f"Skipping uploads mount (Vercel read-only filesystem): {e}")
 
 @app.get("/")
 def read_root():
