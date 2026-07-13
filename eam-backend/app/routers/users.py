@@ -4,7 +4,7 @@ import openpyxl
 import io
 from pydantic import BaseModel
 from typing import List, Optional, Union
-from app.database import supabase
+from app.database import supabase, most_supabase
 from app.routers.auth import get_password_hash
 import datetime
 
@@ -77,11 +77,11 @@ def get_users(branch: Optional[str] = None):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
         
-    query = supabase.table("users").select("*")
+    query = most_supabase.table("users").select("*")
     if branch and branch not in ("All Branches", "ALL", "ALL Branches"):
-        query = query.eq("branch", branch)
+        query = query.eq("branch_code", branch)
     else:
-        query = query.neq("branch", "DUMMY_SANDBOX")
+        query = query.neq("branch_code", "DUMMY_SANDBOX")
         
     res = query.execute()
     
@@ -93,8 +93,8 @@ def get_users(branch: Optional[str] = None):
             "name": u["full_name"],
             "email": u["email"],
             "username": u["username"],
-            "branch": u["branch"],
-            "role": u["role"],
+            "branch": u.get("branch_code") or u.get("branch"),
+            "role": u.get("eam_role") or u.get("role"),
             "status": u.get("status", "Active"),
             "lastLogin": u.get("last_login") or "Never"
         })
@@ -107,15 +107,19 @@ def create_user(req: UserCreate):
     
     password = req.password if req.password else "admin123"
     hashed_password = get_password_hash(password)
+    
+    from app.utils import normalize_branch_name
     branch_val = req.branch[0] if isinstance(req.branch, list) and len(req.branch) > 0 else req.branch
+    branch_val = normalize_branch_name(str(branch_val))
     
     try:
-        res = supabase.table("users").insert({
+        res = most_supabase.table("users").insert({
             "full_name": req.name,
             "email": req.email,
             "username": req.username,
-            "role": req.role,
-            "branch": branch_val if isinstance(branch_val, str) else str(branch_val),
+            "eam_role": req.role,
+            "role": "Guest EAM",
+            "branch_code": branch_val if isinstance(branch_val, str) else str(branch_val),
             "password_hash": hashed_password
         }).execute()
         return {"data": res.data}
@@ -156,7 +160,7 @@ def get_user_import_template():
     roles = [r["name"] for r in roles_res.data] if roles_res.data else ["Master Admin", "Admin System", "Admin Checker", "User Biasa"]
     
     # Fetch branches
-    branches_res = supabase.table("branches").select("name").execute()
+    branches_res = most_supabase.table("branches").select("name").execute()
     branches = [b["name"] for b in branches_res.data] if branches_res.data else ["TMC Pekanbaru", "Head Office"]
     
     info_data = [
@@ -223,7 +227,8 @@ def import_users(file: UploadFile = File(...)):
             email = str(row[1] or "").strip()
             username = str(row[2] or "").strip()
             role = str(row[3] or "").strip()
-            cabang = str(row[4] or "").strip()
+            from app.utils import normalize_branch_name
+            cabang = normalize_branch_name(str(row[4] or "").strip())
             password = str(row[5] or "").strip() if len(row) > 5 else ""
             
             if not nama or not email or not username or not role or not cabang:
@@ -237,15 +242,16 @@ def import_users(file: UploadFile = File(...)):
                 "full_name": nama,
                 "email": email,
                 "username": username,
-                "role": role,
-                "branch": cabang,
+                "eam_role": role,
+                "role": "Guest EAM",
+                "branch_code": cabang,
                 "password_hash": hashed_password
             })
             
         if not users_to_insert:
             raise HTTPException(status_code=400, detail="Tidak ada data valid untuk diimport")
             
-        res = supabase.table("users").insert(users_to_insert).execute()
+        res = most_supabase.table("users").insert(users_to_insert).execute()
         return {"message": f"{len(users_to_insert)} user berhasil diimport", "data": res.data}
     except Exception as e:
         error_msg = str(e)
@@ -264,15 +270,18 @@ def import_users(file: UploadFile = File(...)):
 def update_user(user_id: str, req: UserUpdate):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
+    
+    from app.utils import normalize_branch_name
     branch_val = req.branch[0] if isinstance(req.branch, list) and len(req.branch) > 0 else req.branch
+    branch_val = normalize_branch_name(str(branch_val))
     
     try:
-        res = supabase.table("users").update({
+        res = most_supabase.table("users").update({
             "full_name": req.name,
             "email": req.email,
             "username": req.username,
-            "role": req.role,
-            "branch": branch_val if isinstance(branch_val, str) else str(branch_val)
+            "eam_role": req.role,
+            "branch_code": branch_val if isinstance(branch_val, str) else str(branch_val)
         }).eq("id", user_id).execute()
         return {"data": res.data}
     except Exception as e:
@@ -282,7 +291,7 @@ def update_user(user_id: str, req: UserUpdate):
 def delete_user(user_id: str):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
-    supabase.table("users").delete().eq("id", user_id).execute()
+    most_supabase.table("users").delete().eq("id", user_id).execute()
     return {"message": "User deleted"}
 
 @router.post("/{user_id}/reset-password")
@@ -290,21 +299,21 @@ def reset_user_password(user_id: str):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
     hashed_password = get_password_hash("admin123")
-    supabase.table("users").update({"password_hash": hashed_password}).eq("id", user_id).execute()
+    most_supabase.table("users").update({"password_hash": hashed_password}).eq("id", user_id).execute()
     return {"message": "Password reset to admin123"}
 
 @router.get("/pending")
 def get_pending_users():
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
-    res = supabase.table("users").select("*").eq("status", "Pending").execute()
+    res = most_supabase.table("users").select("*").eq("status", "Pending").execute()
     return {"data": res.data}
 
 @router.post("/{user_id}/approve")
 def approve_user(user_id: str):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
-    res = supabase.table("users").update({"status": "Active"}).eq("id", user_id).execute()
+    res = most_supabase.table("users").update({"status": "Active"}).eq("id", user_id).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="User not found")
     return {"message": "User approved successfully"}
@@ -313,7 +322,7 @@ def approve_user(user_id: str):
 def reject_user(user_id: str):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
-    res = supabase.table("users").delete().eq("id", user_id).execute()
+    res = most_supabase.table("users").delete().eq("id", user_id).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="User not found")
     return {"message": "User rejected successfully"}

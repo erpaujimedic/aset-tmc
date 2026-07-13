@@ -9,7 +9,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from app.routers import auth, users, permissions, assets, deliveries, dashboard, movements, calibrations, tickets, setup, settings, master_components, audit, public
-from app.database import supabase
+from app.database import supabase, most_supabase
 from app.dependencies import get_current_user
 from fastapi import Depends
 from app.dependencies import get_current_user
@@ -108,7 +108,7 @@ def get_master_setup_data():
     
     try:
         # Fetch data and order by sort_order
-        res = supabase.table("branches").select("id, name, branch_code, region, lat, lng").order("sort_order").execute()
+        res = most_supabase.table("branches").select("id, name, branch_code, region, lat, lng").order("sort_order").execute()
         return {
             "branches": res.data
         }

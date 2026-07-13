@@ -22,6 +22,7 @@ const SLASettings = lazy(() => import('./pages/settings/SLASettings'));
 const FileNamingConfig = lazy(() => import('./pages/settings/FileNamingConfig'));
 const MasterComponentSettings = lazy(() => import('./pages/MasterComponentSettings'));
 const AuditLogs = lazy(() => import('./pages/AuditLogs'));
+const SSO = lazy(() => import('./pages/SSO'));
 
 const PageFallback = () => (
   <div className="p-8 w-full h-[80vh] flex flex-col gap-8 items-center">
@@ -37,6 +38,7 @@ export default function App() {
         <Routes>
           {/* PUBLIC ROUTES */}
           <Route path="/" element={<Login />} />
+          <Route path="/sso" element={<Suspense fallback={<PageFallback />}><SSO /></Suspense>} />
           <Route path="/public-asset/:id" element={<PublicAssetPortal />} />
 
           {/* PROTECTED ROUTES */}

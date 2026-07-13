@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 import bcrypt
-from app.database import supabase
+from app.database import supabase, most_supabase
 from app.core.security import create_access_token
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -38,10 +38,10 @@ def verify_login(req: LoginRequest):
         
     if req.email == "dummy@eam.com" or req.email == "dummy_user":
         # Ensure dummy branch exists
-        branch_res = supabase.table("branches").select("*").eq("name", "DUMMY_SANDBOX").execute()
+        branch_res = most_supabase.table("branches").select("*").eq("name", "DUMMY_SANDBOX").execute()
         if not branch_res.data:
             try:
-                supabase.table("branches").insert({
+                most_supabase.table("branches").insert({
                     "name": "DUMMY_SANDBOX",
                     "branch_code": "DUMMY",
                     "region": "SANDBOX",
@@ -53,11 +53,11 @@ def verify_login(req: LoginRequest):
                 pass
                 
         # Ensure dummy user exists
-        dummy_res = supabase.table("users").select("*").eq("email", "dummy@eam.com").execute()
+        dummy_res = most_supabase.table("users").select("*").eq("email", "dummy@eam.com").execute()
         if not dummy_res.data:
             try:
                 hashed_pw = get_password_hash("dummy123")
-                supabase.table("users").insert({
+                most_supabase.table("users").insert({
                     "full_name": "Sandbox Demo User",
                     "email": "dummy@eam.com",
                     "username": "dummy_user",
@@ -69,7 +69,7 @@ def verify_login(req: LoginRequest):
                 pass
 
     # Check by email or username
-    response = supabase.table("users").select("*").or_(f"email.eq.{req.email},username.eq.{req.email}").execute()
+    response = most_supabase.table("users").select("*").or_(f"email.eq.{req.email},username.eq.{req.email}").execute()
     users = response.data
     
     if not users:
@@ -84,19 +84,22 @@ def verify_login(req: LoginRequest):
     try:
         from datetime import datetime, timezone
         now_iso = datetime.now(timezone.utc).isoformat()
-        supabase.table("users").update({"last_login": now_iso}).eq("id", user["id"]).execute()
+        most_supabase.table("users").update({"last_login": now_iso}).eq("id", user["id"]).execute()
     except Exception:
         pass
 
-    access_token = create_access_token(data={"sub": user["id"], "email": user["email"], "role": user["role"]})
+    # PENTING: Gunakan eam_role karena kita sekarang terhubung ke database MOST
+    user_role = user.get("eam_role") or user.get("role")
+    
+    access_token = create_access_token(data={"sub": user["id"], "email": user["email"], "role": user_role})
 
     return {
         "id": user["id"],
         "email": user["email"],
         "username": user["username"],
         "fullName": user["full_name"],
-        "role": user["role"],
-        "branch": user["branch"],
+        "role": user_role,
+        "branch": user.get("branch_code") or user.get("branch"),
         "token": access_token
     }
 
@@ -107,13 +110,17 @@ def register(req: RegisterRequest):
         
     hashed_password = get_password_hash(req.password)
     
+    from app.utils import normalize_branch_name
+    normalized_branch = normalize_branch_name(req.branch)
+    
     try:
-        response = supabase.table("users").insert({
+        response = most_supabase.table("users").insert({
             "full_name": req.fullName,
             "email": req.email,
             "username": req.username,
-            "role": req.role,
-            "branch": req.branch,
+            "eam_role": req.role,
+            "role": "Guest EAM",
+            "branch_code": normalized_branch,
             "password_hash": hashed_password,
             "status": "Pending"
         }).execute()
@@ -137,7 +144,7 @@ def change_password(req: ChangePasswordRequest):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
         
-    response = supabase.table("users").select("*").eq("id", req.user_id).execute()
+    response = most_supabase.table("users").select("*").eq("id", req.user_id).execute()
     if not response.data:
         raise HTTPException(status_code=404, detail="User tidak ditemukan")
         
@@ -146,5 +153,33 @@ def change_password(req: ChangePasswordRequest):
         raise HTTPException(status_code=400, detail="Password lama salah!")
         
     hashed_password = get_password_hash(req.new_password)
-    supabase.table("users").update({"password_hash": hashed_password}).eq("id", req.user_id).execute()
+    most_supabase.table("users").update({"password_hash": hashed_password}).eq("id", req.user_id).execute()
     return {"message": "Password berhasil diubah"}
+
+class SSOLoginRequest(BaseModel):
+    email: str
+    sso_secret: str
+
+@router.post("/sso-login")
+def sso_login(req: SSOLoginRequest):
+    import os
+    if req.sso_secret != os.getenv("SSO_SECRET", "tmc-super-secret-sso-key-2026"):
+        raise HTTPException(status_code=403, detail="Invalid SSO Secret")
+    
+    response = most_supabase.table("users").select("*").eq("email", req.email).execute()
+    if not response.data:
+        raise HTTPException(status_code=404, detail="User tidak ditemukan di sistem SSO")
+    
+    user = response.data[0]
+    user_role = user.get("eam_role") or user.get("role")
+    access_token = create_access_token(data={"sub": user["id"], "email": user["email"], "role": user_role})
+    
+    return {
+        "id": user["id"],
+        "email": user["email"],
+        "username": user["username"],
+        "fullName": user["full_name"],
+        "role": user_role,
+        "branch": user.get("branch_code") or user.get("branch"),
+        "token": access_token
+    }

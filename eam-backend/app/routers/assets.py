@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Request
 from fastapi.responses import StreamingResponse
-from app.database import supabase
+from app.database import supabase, most_supabase
 from pydantic import BaseModel
 from typing import Optional, List, Any
 from fastapi_cache.decorator import cache
@@ -372,6 +372,10 @@ async def create_asset(asset: AssetCreate, request: Request):
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
         asset_dict = asset.dict()
+        from app.utils import normalize_branch_name
+        if "branch" in asset_dict:
+            asset_dict["branch"] = normalize_branch_name(asset_dict["branch"])
+            
         asset_dict["created_by_name"] = request.headers.get("X-User-Name", "System")
         cat_raw = str(asset_dict.get("category", "")).upper()
         if "FFF" in cat_raw or "FURNITURE" in cat_raw:
@@ -403,6 +407,9 @@ async def update_asset(asset_id: str, asset: AssetUpdate):
         raise HTTPException(status_code=500, detail="Database connection error")
     try:
         update_data = {k: v for k, v in asset.dict().items() if v is not None}
+        from app.utils import normalize_branch_name
+        if "branch" in update_data:
+            update_data["branch"] = normalize_branch_name(update_data["branch"])
         
         # Intercept category to store full name
         if "category" in update_data:
@@ -541,7 +548,7 @@ async def import_assets(file: UploadFile = File(...)):
         current_year = datetime.datetime.now().year
         
         # Fetch master branches to normalize casing
-        branches_res = supabase.table("branches").select("name").execute()
+        branches_res = most_supabase.table("branches").select("name").execute()
         valid_branches = {b["name"].lower(): b["name"] for b in branches_res.data} if branches_res.data else {}
         
         for idx, row in enumerate(rows[1:], start=2):

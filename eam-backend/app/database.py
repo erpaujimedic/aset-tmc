@@ -14,6 +14,16 @@ else:
     supabase = None
     print("WARNING: Supabase credentials not found.")
 
+# MOST Supabase Initialization (IdP & Branches)
+most_supabase_url = os.getenv("MOST_SUPABASE_URL")
+most_supabase_key = os.getenv("MOST_SUPABASE_KEY")
+
+if most_supabase_url and most_supabase_key:
+    most_supabase: Client = create_client(most_supabase_url, most_supabase_key, options=ClientOptions(postgrest_client_timeout=10))
+else:
+    most_supabase = None
+    print("WARNING: MOST Supabase credentials not found.")
+
 # Firebase Admin Initialization removed
 
 import redis

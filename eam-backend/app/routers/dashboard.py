@@ -1,6 +1,6 @@
 import asyncio
 from fastapi import APIRouter, HTTPException
-from app.database import supabase
+from app.database import supabase, most_supabase
 from collections import Counter
 from datetime import datetime, timedelta
 from fastapi_cache.decorator import cache
@@ -35,7 +35,7 @@ def get_dashboard_stats(branch: str = None):
         assets = all_assets
         
         # Fetch branches count
-        branches_res = supabase.table("branches").select("id").neq("name", "DUMMY_SANDBOX").execute()
+        branches_res = most_supabase.table("branches").select("id").neq("name", "DUMMY_SANDBOX").execute()
         total_branches = len(branches_res.data)
 
         all_tickets = []
@@ -189,7 +189,7 @@ def reset_sandbox():
         supabase.table("assets").delete().eq("branch", "DUMMY_SANDBOX").execute()
         
         # Clean up sandbox users except dummy@eam.com
-        supabase.table("users").delete().eq("branch", "DUMMY_SANDBOX").neq("email", "dummy@eam.com").execute()
+        most_supabase.table("users").delete().eq("branch_code", "DUMMY_SANDBOX").neq("email", "dummy@eam.com").execute()
         
         from fastapi_cache import FastAPICache
         asyncio.run(FastAPICache.clear())
