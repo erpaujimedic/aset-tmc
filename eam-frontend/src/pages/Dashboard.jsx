@@ -415,11 +415,11 @@ export default function Dashboard() {
 
         {/* SHIMMER STATE FOR KPI */}
         {isStatsLoading ? (
-          <div className="mt-4 flex md:grid md:grid-cols-4 gap-4 overflow-x-auto custom-scrollbar pb-2">
-            <ShimmerLoader type="card" className="h-[100px] shrink-0 w-[75vw] sm:w-[240px] md:w-auto" />
-            <ShimmerLoader type="card" className="h-[100px] shrink-0 w-[75vw] sm:w-[240px] md:w-auto" />
-            <ShimmerLoader type="card" className="h-[100px] shrink-0 w-[75vw] sm:w-[240px] md:w-auto" />
-            <ShimmerLoader type="card" className="h-[100px] shrink-0 w-[75vw] sm:w-[240px] md:w-auto" />
+          <div className="mt-4 flex md:grid md:grid-cols-4 gap-4 overflow-x-auto custom-scrollbar pb-2 snap-x snap-mandatory">
+            <ShimmerLoader type="kpi" className="shrink-0 w-[75vw] sm:w-[240px] md:w-auto snap-center" />
+            <ShimmerLoader type="kpi" className="shrink-0 w-[75vw] sm:w-[240px] md:w-auto snap-center" />
+            <ShimmerLoader type="kpi" className="shrink-0 w-[75vw] sm:w-[240px] md:w-auto snap-center" />
+            <ShimmerLoader type="kpi" className="shrink-0 w-[75vw] sm:w-[240px] md:w-auto snap-center" />
           </div>
         ) : (
           <>
@@ -458,70 +458,82 @@ export default function Dashboard() {
             
             {/* CHARTS SECTION */}
             <div className="lg:col-span-2 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex flex-col">
-                  <h3 className="text-sm font-black text-slate-800 mb-2 uppercase tracking-widest">Assets per Region</h3>
-                  <div className="flex-1 min-h-[260px]">
-                    <ReactECharts option={regionChartOptions} style={{ height: '100%' }} />
+              {isStatsLoading ? (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <ShimmerLoader type="chart" />
+                    <ShimmerLoader type="chart" />
                   </div>
-                </div>
-                <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex flex-col relative">
-                  <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Top Branches (Assets)</h3>
-                    <div className="flex gap-1 bg-slate-50 p-0.5 rounded-lg border border-slate-100">
-                      <button 
-                        onClick={() => setBranchChartPage(p => Math.max(0, p - 1))}
-                        disabled={currentBranchPage === 0}
-                        className="p-1 rounded-md text-slate-400 hover:text-[#286086] hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none transition-all cursor-pointer disabled:cursor-not-allowed"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
-                      </button>
-                      <button 
-                        onClick={() => setBranchChartPage(p => Math.min(totalBranchPages - 1, p + 1))}
-                        disabled={currentBranchPage >= totalBranchPages - 1}
-                        className="p-1 rounded-md text-slate-400 hover:text-[#286086] hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none transition-all cursor-pointer disabled:cursor-not-allowed"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-                      </button>
+                  <ShimmerLoader type="activities" />
+                </>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex flex-col">
+                      <h3 className="text-sm font-black text-slate-800 mb-2 uppercase tracking-widest">Assets per Region</h3>
+                      <div className="flex-1 min-h-[260px]">
+                        <ReactECharts option={regionChartOptions} style={{ height: '100%' }} />
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex-1 min-h-[260px]">
-                    <ReactECharts option={branchChartOptions} style={{ height: '100%' }} />
-                  </div>
-                </div>
-              </div>
-
-              {/* CALIBRATION ALERTS - SLEEK UI */}
-              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-                <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                    <svg className="w-4 h-4 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                    Action Required: Calibrations ({calibrationAlerts.length})
-                  </h3>
-                </div>
-                <div className="p-0 overflow-y-auto max-h-[220px] custom-scrollbar">
-                  {calibrationAlerts.length > 0 ? (
-                    <div className="divide-y divide-slate-100">
-                      {calibrationAlerts.map((cal, idx) => (
-                        <div key={idx} onClick={() => navigate('/calibrations')} className="p-3 px-4 hover:bg-slate-50 transition-colors flex justify-between items-center cursor-pointer group">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-2 h-2 rounded-full ${cal.status === 'Expired' ? 'bg-rose-500' : 'bg-amber-500'}`}></div>
-                            <div>
-                              <p className="text-sm font-bold text-slate-800 group-hover:text-[#286086] transition-colors">{cal.assets?.name}</p>
-                              <p className="text-[10px] text-slate-500 font-mono mt-0.5">{cal.asset_id} • Due: {new Date(cal.next_calibration_date).toLocaleDateString()}</p>
-                            </div>
-                          </div>
-                          <button className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors border ${cal.status === 'Expired' ? 'bg-rose-50 text-rose-700 border-rose-200 group-hover:bg-rose-500 group-hover:text-white' : 'bg-amber-50 text-amber-700 border-amber-200 group-hover:bg-amber-500 group-hover:text-white'}`}>
-                            Calibrate Now
+                    <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex flex-col relative">
+                      <div className="flex justify-between items-center mb-2">
+                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Top Branches (Assets)</h3>
+                        <div className="flex gap-1 bg-slate-50 p-0.5 rounded-lg border border-slate-100">
+                          <button 
+                            onClick={() => setBranchChartPage(p => Math.max(0, p - 1))}
+                            disabled={currentBranchPage === 0}
+                            className="p-1 rounded-md text-slate-400 hover:text-[#286086] hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none transition-all cursor-pointer disabled:cursor-not-allowed"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                          </button>
+                          <button 
+                            onClick={() => setBranchChartPage(p => Math.min(totalBranchPages - 1, p + 1))}
+                            disabled={currentBranchPage >= totalBranchPages - 1}
+                            className="p-1 rounded-md text-slate-400 hover:text-[#286086] hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none transition-all cursor-pointer disabled:cursor-not-allowed"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                           </button>
                         </div>
-                      ))}
+                      </div>
+                      <div className="flex-1 min-h-[260px]">
+                        <ReactECharts option={branchChartOptions} style={{ height: '100%' }} />
+                      </div>
                     </div>
-                  ) : (
-                    <div className="p-8 text-center text-slate-400 text-sm italic font-bold">All assets are properly calibrated.</div>
-                  )}
-                </div>
-              </div>
+                  </div>
+
+                  {/* CALIBRATION ALERTS - SLEEK UI */}
+                  <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                    <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                      <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                        <svg className="w-4 h-4 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                        Action Required: Calibrations ({calibrationAlerts.length})
+                      </h3>
+                    </div>
+                    <div className="p-0 overflow-y-auto max-h-[220px] custom-scrollbar">
+                      {calibrationAlerts.length > 0 ? (
+                        <div className="divide-y divide-slate-100">
+                          {calibrationAlerts.map((cal, idx) => (
+                            <div key={idx} onClick={() => navigate('/calibrations')} className="p-3 px-4 hover:bg-slate-50 transition-colors flex justify-between items-center cursor-pointer group">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-2 h-2 rounded-full ${cal.status === 'Expired' ? 'bg-rose-500' : 'bg-amber-500'}`}></div>
+                                <div>
+                                  <p className="text-sm font-bold text-slate-800 group-hover:text-[#286086] transition-colors">{cal.assets?.name}</p>
+                                  <p className="text-[10px] text-slate-500 font-mono mt-0.5">{cal.asset_id} • Due: {new Date(cal.next_calibration_date).toLocaleDateString()}</p>
+                                </div>
+                              </div>
+                              <button className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors border ${cal.status === 'Expired' ? 'bg-rose-50 text-rose-700 border-rose-200 group-hover:bg-rose-500 group-hover:text-white' : 'bg-amber-50 text-amber-700 border-amber-200 group-hover:bg-amber-500 group-hover:text-white'}`}>
+                                Calibrate Now
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-8 text-center text-slate-400 text-sm italic font-bold">All assets are properly calibrated.</div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="lg:col-span-1 bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col">
@@ -531,27 +543,44 @@ export default function Dashboard() {
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                 </button>
               </h3>
-              <div className="flex-1 overflow-y-auto pr-2 space-y-4">
-                {stats.recentActivities && stats.recentActivities.length > 0 ? (
-                  stats.recentActivities.map(act => (
-                    <div key={act.id} className="relative pl-6 before:content-[''] before:absolute before:left-[11px] before:top-2 before:bottom-[-16px] before:w-[2px] before:bg-slate-100 last:before:hidden">
-                      <div className="absolute left-0 top-1.5 w-6 h-6 rounded-full bg-blue-50 border-2 border-white flex items-center justify-center shadow-sm">
-                        <div className="w-2 h-2 rounded-full bg-[#286086]"></div>
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-700">{act.status_update}</h4>
-                        <p className="text-xs text-slate-500 mt-1">{act.asset_name} ({act.tracking_code})</p>
-                        <p className="text-[10px] text-slate-400 mt-1 font-semibold">{new Date(act.created_at).toLocaleString()} • {act.updated_by}</p>
+              {isStatsLoading ? (
+                <div className="flex-1 space-y-6 mt-2">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="flex gap-3">
+                      <div className="relative overflow-hidden bg-slate-100 rounded-full before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmerSweep_1.5s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/60 before:to-transparent w-6 h-6 shrink-0"></div>
+                      <div className="flex-1 space-y-2 pt-1">
+                        <div className="relative overflow-hidden bg-slate-100 rounded before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmerSweep_1.5s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/60 before:to-transparent h-4 w-3/4"></div>
+                        <div className="relative overflow-hidden bg-slate-100 rounded before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmerSweep_1.5s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/60 before:to-transparent h-3 w-1/2"></div>
+                        <div className="relative overflow-hidden bg-slate-100 rounded before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmerSweep_1.5s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/60 before:to-transparent h-2 w-1/3"></div>
                       </div>
                     </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-slate-400 italic">{t('noRecentActivities')}</p>
-                )}
-              </div>
-              <button onClick={() => navigate('/deliveries')} className="mt-4 w-full py-2 bg-slate-50 hover:bg-slate-100 text-[#286086] font-bold text-sm rounded-xl transition-colors border border-slate-100">
-                {t('viewAllDeliveries')}
-              </button>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+                    {stats.recentActivities && stats.recentActivities.length > 0 ? (
+                      stats.recentActivities.map(act => (
+                        <div key={act.id} className="relative pl-6 before:content-[''] before:absolute before:left-[11px] before:top-2 before:bottom-[-16px] before:w-[2px] before:bg-slate-100 last:before:hidden">
+                          <div className="absolute left-0 top-1.5 w-6 h-6 rounded-full bg-blue-50 border-2 border-white flex items-center justify-center shadow-sm">
+                            <div className="w-2 h-2 rounded-full bg-[#286086]"></div>
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-slate-700">{act.status_update}</h4>
+                            <p className="text-xs text-slate-500 mt-1">{act.asset_name} ({act.tracking_code})</p>
+                            <p className="text-[10px] text-slate-400 mt-1 font-semibold">{new Date(act.created_at).toLocaleString()} • {act.updated_by}</p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-slate-400 italic">{t('noRecentActivities')}</p>
+                    )}
+                  </div>
+                  <button onClick={() => navigate('/deliveries')} className="mt-4 w-full py-2 bg-slate-50 hover:bg-slate-100 text-[#286086] font-bold text-sm rounded-xl transition-colors border border-slate-100">
+                    {t('viewAllDeliveries')}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
