@@ -166,8 +166,9 @@ class SSOLoginRequest(BaseModel):
 
 @router.post("/sso-login")
 def sso_login(req: SSOLoginRequest):
-    import os
-    if req.sso_secret != os.getenv("SSO_SECRET", "tmc-super-secret-sso-key-2026"):
+    # Hardcode SSO secret to bypass Vercel env vars
+    expected_secret = "tmc-super-secret-sso-key-2026"
+    if req.sso_secret != expected_secret:
         raise HTTPException(status_code=403, detail="Invalid SSO Secret")
     
     response = most_supabase.table("users").select("*").eq("email", req.email).execute()
