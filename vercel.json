@@ -1,21 +1,24 @@
 {
   "builds": [
     {
-      "src": "eam-frontend/package.json",
-      "use": "@vercel/static-build",
+      "src": "api/index.py",
+      "use": "@vercel/python",
       "config": {
-        "distDir": "dist"
+        "includeFiles": ["eam-backend/app/**", "eam-backend/.env", "requirements.txt"]
       }
     },
     {
-      "src": "eam-backend/app/main.py",
-      "use": "@vercel/python"
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "eam-frontend/dist"
+      }
     }
   ],
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/eam-backend/app/main.py"
+      "destination": "/api/index.py"
     },
     {
       "source": "/(.*)",

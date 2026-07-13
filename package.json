@@ -1,0 +1,8 @@
+{
+  "name": "eam-asset",
+  "version": "1.0.0",
+  "scripts": {
+    "install": "cd eam-frontend && npm install",
+    "build": "cd eam-frontend && npm run build"
+  }
+}
