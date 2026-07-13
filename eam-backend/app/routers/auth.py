@@ -77,7 +77,11 @@ def verify_login(req: LoginRequest):
         
     user = users[0]
     
-    if not verify_password(req.password, user["password_hash"]):
+    db_hash = user.get("password_hash")
+    if not db_hash:
+        raise HTTPException(status_code=401, detail="Akun belum memiliki password EAM (Silakan masuk via MOST SSO)")
+        
+    if not verify_password(req.password, db_hash):
         raise HTTPException(status_code=401, detail="Password salah!")
         
     # Update last_login
