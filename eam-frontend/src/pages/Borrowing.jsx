@@ -280,7 +280,7 @@ export default function Borrowing() {
     if (!confirm.isConfirmed) return;
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/movements/${trackingCode}`, {
+      const res = await fetch(`/api/movements/${trackingCode}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`

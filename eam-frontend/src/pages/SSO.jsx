@@ -24,7 +24,7 @@ export default function SSO() {
 
     const processSSO = async () => {
       try {
-        const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+        const backendUrl = '/api';
         const res = await axios.post(`${backendUrl}/auth/sso-login`, {
           email: email,
           sso_secret: secret
