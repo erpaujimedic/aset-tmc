@@ -38,15 +38,15 @@ async def lifespan(app: FastAPI):
         print("WARNING: REDIS_URL not set. Falling back to InMemory Cache.")
         FastAPICache.init(InMemoryBackend(), prefix="eam-cache")
         
-    # Start background cron jobs
-    sla_task = asyncio.create_task(enforce_sla_loop())
-    calib_task = asyncio.create_task(check_calibration_loop())
+    # Start background cron jobs (DISABLED FOR VERCEL SERVERLESS)
+    # sla_task = asyncio.create_task(enforce_sla_loop())
+    # calib_task = asyncio.create_task(check_calibration_loop())
     
     yield
     
     # Cancel tasks on shutdown
-    sla_task.cancel()
-    calib_task.cancel()
+    # sla_task.cancel()
+    # calib_task.cancel()
 
 app = FastAPI(
     title="TMC EAM System API",
@@ -79,7 +79,7 @@ async def global_exception_handler(request, exc):
 
 import os
 os.makedirs("uploads", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/api/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 @app.get("/")
 def read_root():
@@ -100,17 +100,17 @@ def get_master_setup_data():
         print(f"Error fetching branches: {e}")
         return {"branches": []}
 
-app.include_router(auth.router)
-app.include_router(public.router)
-app.include_router(users.router, dependencies=[Depends(get_current_user)])
-app.include_router(permissions.router, dependencies=[Depends(get_current_user)])
-app.include_router(assets.router, dependencies=[Depends(get_current_user)])
-app.include_router(deliveries.router, dependencies=[Depends(get_current_user)])
-app.include_router(dashboard.router, dependencies=[Depends(get_current_user)])
-app.include_router(movements.router, dependencies=[Depends(get_current_user)])
-app.include_router(calibrations.router, dependencies=[Depends(get_current_user)])
-app.include_router(tickets.router, dependencies=[Depends(get_current_user)])
-app.include_router(setup.router, dependencies=[Depends(get_current_user)])
-app.include_router(settings.router, dependencies=[Depends(get_current_user)])
-app.include_router(master_components.router, dependencies=[Depends(get_current_user)])
-app.include_router(audit.router, dependencies=[Depends(get_current_user)])
+app.include_router(auth.router, prefix="/api")
+app.include_router(public.router, prefix="/api")
+app.include_router(users.router, dependencies=[Depends(get_current_user)], prefix="/api")
+app.include_router(permissions.router, dependencies=[Depends(get_current_user)], prefix="/api")
+app.include_router(assets.router, dependencies=[Depends(get_current_user)], prefix="/api")
+app.include_router(deliveries.router, dependencies=[Depends(get_current_user)], prefix="/api")
+app.include_router(dashboard.router, dependencies=[Depends(get_current_user)], prefix="/api")
+app.include_router(movements.router, dependencies=[Depends(get_current_user)], prefix="/api")
+app.include_router(calibrations.router, dependencies=[Depends(get_current_user)], prefix="/api")
+app.include_router(tickets.router, dependencies=[Depends(get_current_user)], prefix="/api")
+app.include_router(setup.router, dependencies=[Depends(get_current_user)], prefix="/api")
+app.include_router(settings.router, dependencies=[Depends(get_current_user)], prefix="/api")
+app.include_router(master_components.router, dependencies=[Depends(get_current_user)], prefix="/api")
+app.include_router(audit.router, dependencies=[Depends(get_current_user)], prefix="/api")

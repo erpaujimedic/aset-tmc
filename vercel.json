@@ -1,0 +1,34 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "eam-frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    },
+    {
+      "src": "eam-backend/app/main.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "eam-backend/app/main.py"
+    },
+    {
+      "src": "/(assets/.*)",
+      "dest": "eam-frontend/$1"
+    },
+    {
+      "src": "/(.*\\.[a-zA-Z0-9]+)$",
+      "dest": "eam-frontend/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "eam-frontend/index.html"
+    }
+  ]
+}

@@ -61,12 +61,13 @@ export default function PublicAssetPortal() {
 
       setCalibrations(data.calibrations);
 
-      const publicModule = data.permissions.find(m => m.module === 'Public QR Portal');
-      if (publicModule) {
-        const permMap = {};
-        publicModule.actions.forEach(a => permMap[a] = true);
-        setPermissions(permMap);
-      }
+      const permMap = {};
+      data.permissions.forEach(p => {
+        if (p.module === 'Public QR Portal' && p.enabled) {
+          permMap[p.action] = true;
+        }
+      });
+      setPermissions(permMap);
     } catch (error) {
       console.error("Public Portal Error", error);
       setError('Asset not found or failed to load');
@@ -277,6 +278,11 @@ export default function PublicAssetPortal() {
         
         {/* Main Card */}
         <div className="bg-white/90 backdrop-blur-xl rounded-[32px] shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] border border-white overflow-hidden mb-6 relative">
+          {asset.photo_url && (
+            <div className="w-full h-48 bg-slate-100 border-b border-slate-100">
+              <img src={asset.photo_url} alt={asset.name} className="w-full h-full object-cover" />
+            </div>
+          )}
           <div className="p-7">
             <h2 className="text-3xl font-black text-slate-800 leading-[1.1] tracking-tight mb-2">{asset.name}</h2>
             <div className="mb-4">

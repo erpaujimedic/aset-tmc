@@ -1848,6 +1848,12 @@ export default function Assets() {
                       </div>
                     </div>
                     
+                    {selectedAsset.photo_url && (
+                      <div className="w-full h-48 bg-slate-100 rounded-2xl overflow-hidden border border-slate-200">
+                        <img src={selectedAsset.photo_url} alt="Foto Aset" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-4">
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Lokasi Utama</span>
