@@ -90,7 +90,7 @@ def dispatch_asset(
             filename = f"{file_name_base}.{file_ext}" if not file_name_base.endswith(f".{file_ext}") else file_name_base
             filename = filename.replace("/", "_").replace("\\", "_")
 
-            temp_dir = "uploads/temp"
+            temp_dir = "/tmp"
             os.makedirs(temp_dir, exist_ok=True)
             temp_path = os.path.join(temp_dir, f"{uuid.uuid4()}_{filename}")
             with open(temp_path, "wb") as buffer:
@@ -192,7 +192,7 @@ def upload_document_proof(
         filename = f"{file_name_base}.{file_ext}" if not file_name_base.endswith(f".{file_ext}") else file_name_base
         filename = filename.replace("/", "_").replace("\\", "_")
 
-        temp_dir = "uploads/temp"
+        temp_dir = "/tmp"
         os.makedirs(temp_dir, exist_ok=True)
         temp_path = os.path.join(temp_dir, f"{uuid.uuid4()}_{filename}")
         with open(temp_path, "wb") as buffer:
@@ -275,7 +275,7 @@ def receive_asset(
         filename = filename.replace("/", "_").replace("\\", "_")
         
         # Save temp file
-        temp_dir = "uploads/temp"
+        temp_dir = "/tmp"
         os.makedirs(temp_dir, exist_ok=True)
         temp_path = os.path.join(temp_dir, f"{uuid.uuid4()}_{filename}")
         with open(temp_path, "wb") as buffer:
@@ -555,7 +555,7 @@ def borrow_asset(
             filename = f"{file_name_base}.{file_ext}" if not file_name_base.endswith(f".{file_ext}") else file_name_base
             filename = filename.replace("/", "_").replace("\\", "_")
 
-            temp_dir = "uploads/temp"
+            temp_dir = "/tmp"
             os.makedirs(temp_dir, exist_ok=True)
             temp_path = os.path.join(temp_dir, f"{uuid.uuid4()}_{filename}")
             with open(temp_path, "wb") as buffer:
@@ -758,7 +758,8 @@ def generate_docx_form(tracking_code: str):
         })
         
     try:
-        tpl = DocxTemplate("templates/form_permintaan.docx")
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        tpl = DocxTemplate(os.path.join(base_dir, "templates", "form_permintaan.docx"))
         tpl.render(context)
         out = io.BytesIO()
         tpl.save(out)
@@ -854,7 +855,7 @@ def return_borrow_asset(
         filename = f"{file_name_base}.{file_ext}" if not file_name_base.endswith(f".{file_ext}") else file_name_base
         filename = filename.replace("/", "_").replace("\\", "_")
         
-        temp_dir = "uploads/temp"
+        temp_dir = "/tmp"
         os.makedirs(temp_dir, exist_ok=True)
         temp_path = os.path.join(temp_dir, f"{uuid.uuid4()}_{filename}")
         with open(temp_path, "wb") as buffer:

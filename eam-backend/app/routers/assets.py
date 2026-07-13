@@ -92,7 +92,9 @@ class BAPayload(BaseModel):
 
 @router.post("/export-ba")
 async def export_ba(payload: BAPayload):
-    doc = docx.Document("templates/ba_barcodeassets.docx")
+    import os
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    doc = docx.Document(os.path.join(base_dir, "templates", "ba_barcodeassets.docx"))
     
     target_row = None
     target_table = None
@@ -149,9 +151,9 @@ async def export_ba(payload: BAPayload):
     import tempfile
     import os
     
-    frontend_logo_path = "templates/logo.png"
+    frontend_logo_path = os.path.join(base_dir, "templates", "logo.png")
     if not os.path.exists(frontend_logo_path):
-        frontend_logo_path = "../eam-frontend/public/logo.png"
+        frontend_logo_path = os.path.join(os.path.dirname(base_dir), "eam-frontend", "public", "logo.png")
         
     for i, asset in enumerate(payload.assets):
         context[f"no_pr_{i}"] = asset.no_pr if asset.no_pr else "-"
@@ -177,7 +179,7 @@ async def export_ba(payload: BAPayload):
             
             draw = ImageDraw.Draw(canvas)
             try:
-                font_path = "templates/arialbd.ttf"
+                font_path = os.path.join(base_dir, "templates", "arialbd.ttf")
                 if not os.path.exists(font_path):
                     font_path = "arialbd.ttf"
                 font_bold_small = ImageFont.truetype(font_path, 16 * scale)

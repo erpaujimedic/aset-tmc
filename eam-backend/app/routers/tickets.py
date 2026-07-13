@@ -88,7 +88,8 @@ def download_iso_form(ticket_id: str):
             "disetujui": ""
         }
         
-        tpl_path = os.path.join("templates", "form_permintaan.docx")
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        tpl_path = os.path.join(base_dir, "templates", "form_permintaan.docx")
         if not os.path.exists(tpl_path):
             raise HTTPException(status_code=404, detail="Template file not found on server")
             
@@ -226,7 +227,7 @@ def upload_signed_form(
         file_name = f"signed_form_{ticket_id}_{uuid.uuid4().hex[:6]}.{file_ext}"
         
         # Save temp file
-        temp_dir = "uploads/temp"
+        temp_dir = "/tmp"
         os.makedirs(temp_dir, exist_ok=True)
         temp_path = os.path.join(temp_dir, f"{uuid.uuid4()}_{file_name}")
         with open(temp_path, "wb") as buffer:
