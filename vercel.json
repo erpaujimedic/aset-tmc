@@ -1,5 +1,4 @@
 {
-  "version": 2,
   "builds": [
     {
       "src": "eam-frontend/package.json",
@@ -13,22 +12,14 @@
       "use": "@vercel/python"
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "eam-backend/app/main.py"
+      "source": "/api/(.*)",
+      "destination": "/eam-backend/app/main.py"
     },
     {
-      "src": "/(assets/.*)",
-      "dest": "eam-frontend/$1"
-    },
-    {
-      "src": "/(.*\\.[a-zA-Z0-9]+)$",
-      "dest": "eam-frontend/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "eam-frontend/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
