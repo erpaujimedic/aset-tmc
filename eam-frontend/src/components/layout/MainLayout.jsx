@@ -6,7 +6,7 @@ import useAuthStore from '../../store/authStore';
 import useI18nStore from '../../store/i18nStore';
 import useChatStore from '../../store/chatStore';
 import BaseModal from '../ui/BaseModal';
-import UserGuideModal from '../ui/UserGuideModal';
+
 
 // 🎨 PREMIUM UNIFIED SVG ICONS
 const KeyIcon = () => <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" /></svg>;
@@ -25,7 +25,7 @@ const LiveUsersIcon = () => <svg className="w-[18px] h-[18px]" viewBox="0 0 24 2
 const LogoutIcon = () => <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>;
 const CloseIcon = () => <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>;
 const TrashIcon = () => <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>;
-const GuideIcon = () => <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>;
+
 
 export default function MainLayout() {
   const navigate = useNavigate();
@@ -46,7 +46,7 @@ export default function MainLayout() {
   const [approvalTab, setApprovalTab] = useState('assets');
   const [systemUsers, setSystemUsers] = useState([]);
   const [isLoadingPanel, setIsLoadingPanel] = useState(false);
-  const [isGuideOpen, setIsGuideOpen] = useState(false);
+
 
   // Change password state
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
@@ -251,7 +251,7 @@ export default function MainLayout() {
       baseSteps.push({ element: '#nav-users', popover: { title: 'Manajemen Pengguna', description: 'Area konfigurasi sistem untuk mengatur Role (Hak Akses) dan akun pengguna.', side: "right", align: 'start' } });
     }
 
-    baseSteps.push({ element: '#action-guide', popover: { title: 'User Guide', description: 'Klik ikon ini kapan saja jika Anda membutuhkan buku panduan tertulis secara lengkap.', side: "bottom", align: 'end' } });
+
     baseSteps.push({ element: '#action-chat', popover: { title: 'Global Chat', description: 'Ruang komunikasi real-time antar pengguna sistem.', side: "bottom", align: 'end' } });
     baseSteps.push({ element: '#action-approval', popover: { title: 'Approval Center', description: 'Pusat persetujuan (Approve/Reject) untuk pengajuan pinjaman/mutasi aset.', side: "bottom", align: 'end' } });
 
@@ -327,8 +327,7 @@ export default function MainLayout() {
     if (btnId === 'chat') {
       if (chatState === 'closed' || chatState === 'minimized') setChatState('open');
       else setChatState('closed');
-    } else if (btnId === 'guide') {
-      setIsGuideOpen(true);
+
     } else {
       if (activePanel === btnId) {
         setActivePanel(null);
@@ -404,16 +403,35 @@ export default function MainLayout() {
 
       {/* 1. SIDEBAR */}
       <aside className={`fixed md:relative top-0 left-0 h-full bg-gradient-to-b from-white to-slate-100/80 text-slate-700 flex flex-col transition-all duration-300 ease-in-out border-r border-slate-200 z-[1000] md:z-[60] shadow-[4px_0_24px_rgba(0,0,0,0.02)] ${isSidebarOpen ? 'translate-x-0 w-[260px]' : '-translate-x-full md:translate-x-0 w-[260px] md:w-[78px]'}`}>
-        <div 
+        
+        {/* 🔥 CLEAN FLOATING TOGGLE BUTTON 🔥 */}
+        <button
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="h-[75px] min-h-[75px] flex items-center px-5 border-b border-slate-100/50 gap-3 overflow-hidden cursor-pointer hover:bg-slate-50/50 transition-colors"
-          title="Toggle Sidebar"
+          className="hidden md:flex absolute -right-3 top-7 w-6 h-6 bg-white border border-slate-200 rounded-full items-center justify-center text-slate-400 hover:text-slate-800 hover:border-slate-300 hover:shadow-sm transition-all duration-200 z-[70] shadow-[0_2px_4px_rgba(0,0,0,0.02)] outline-none"
+          title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
         >
-          <div className="relative w-[36px] h-[36px] min-w-[36px] flex-shrink-0 flex items-center justify-center">
+          {isSidebarOpen ? (
+              <svg className="w-3.5 h-3.5 transition-transform duration-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+                <path d="M9 3v18" />
+                <path d="m16 15-3-3 3-3" />
+              </svg>
+            ) : (
+              <svg className="w-3.5 h-3.5 transition-transform duration-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+                <path d="M9 3v18" />
+                <path d="m14 9 3 3-3 3" />
+              </svg>
+            )}
+        </button>
+
+        {/* LOGO HEADER */}
+        <div className="h-[75px] min-h-[75px] flex items-center px-6 gap-3 overflow-hidden">
+          <div className="relative w-8 h-8 min-w-[32px] flex-shrink-0 flex items-center justify-center">
             <img src="/logo.png" alt="Logo" className="w-full h-full object-contain drop-shadow-sm" />
           </div>
           <div className={`flex flex-col transition-all duration-200 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 hidden'}`}>
-            <span className="font-bold tracking-widest text-sm text-slate-800 leading-none whitespace-nowrap">EAM SYSTEM</span>
+            <span className="font-extrabold tracking-wide text-[14px] text-slate-800 leading-none whitespace-nowrap">TMC ASSETS</span>
           </div>
         </div>
 
@@ -517,36 +535,92 @@ export default function MainLayout() {
             );
           })}
         </nav>
+        
+        {/* BOTTOM BUTTONS (ONSITE & PESAT) */}
+        <div className="p-4 border-t border-slate-100/60 bg-slate-50/50 space-y-2 relative z-20">
+          <div className={`flex items-center gap-2 transition-all duration-300 ${!isSidebarOpen ? 'flex-col' : ''}`}>
+            <a 
+              href="http://localhost:5174" 
+              target="_blank" 
+              rel="noreferrer"
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-[#286086] hover:border-[#286086]/30 hover:bg-blue-50/50 hover:shadow-sm transition-all group relative overflow-hidden`}
+            >
+              <i className="fa-solid fa-home transition-transform group-hover:scale-110"></i>
+              <span className={`text-xs font-bold transition-all duration-300 ${!isSidebarOpen ? 'hidden' : 'block'}`}>ONSITE</span>
+            </a>
+            <a 
+              href="https://tmc-pesat.com" 
+              target="_blank" 
+              rel="noreferrer"
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/50 hover:shadow-sm transition-all group relative overflow-hidden`}
+            >
+              <i className="fa-solid fa-rocket transition-transform group-hover:scale-110"></i>
+              <span className={`text-xs font-bold transition-all duration-300 ${!isSidebarOpen ? 'hidden' : 'block'}`}>PESAT</span>
+            </a>
+          </div>
+        </div>
       </aside>
 
       {/* 2. WORKSPACE CONTROLLER */}
       <div className="flex-1 flex flex-col relative h-full min-w-0">
         
         <header className="h-[75px] min-h-[75px] bg-white border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-[100]">
-          <div className="flex items-center gap-2 md:gap-3">
-            <button onClick={() => setIsSidebarOpen(true)} className="md:hidden w-9 h-9 rounded-lg flex items-center justify-center bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 transition-colors">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
-            </button>
-            <span className="text-base md:text-lg font-bold md:font-semibold text-slate-700 capitalize truncate max-w-[120px] md:max-w-none">
-              {location.pathname === '/' ? 'Dashboard' : location.pathname.substring(1).replace('-', ' ')}
-            </span>
-          </div>
+          <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setIsSidebarOpen(true)}
+                className="md:hidden w-10 h-10 flex items-center justify-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+              </button>
+              {(() => {
+                  const path = location.pathname;
+                  let icon = <DashboardIcon />;
+                  let title = 'Dashboard';
+                  if (path.includes('assets')) { icon = <AssetIcon />; title = 'Assets'; }
+                  else if (path.includes('ticketing')) { icon = <TicketIcon />; title = 'Tickets'; }
+                  else if (path.includes('settings')) { icon = <UserMgmtIcon />; title = 'Settings'; }
+                  else if (path !== '/') { title = path.substring(1).replace('-', ' '); }
+                  
+                  return (
+                    <>
+                      <div className="hidden md:flex w-9 h-9 rounded-xl bg-[#286086]/10 text-[#286086] items-center justify-center">
+                        {icon}
+                      </div>
+                      <div className="flex flex-col justify-center">
+                        <span className="text-[16px] font-extrabold text-slate-800 capitalize leading-none tracking-tight">
+                          {title}
+                        </span>
+                      </div>
+                    </>
+                  );
+                })()}
+            </div>
 
           <div className="flex items-center gap-2 md:gap-3">
             <div className="hidden md:flex items-center gap-2">
               {[
-                { id: 'guide', icon: <GuideIcon />, label: t('userGuide') || 'User Guide', color: 'hover:text-purple-600 hover:bg-purple-50/50' },
                 { id: 'chat', icon: <ChatIcon />, label: t('chat') || 'Global Chat', color: 'hover:text-blue-600 hover:bg-blue-50/50' },
                 { id: 'shortcuts', icon: <ShortcutsIcon />, label: t('shortcuts') || 'Command Center', color: 'hover:text-amber-600 hover:bg-amber-50/50' },
-                { id: 'approval', icon: <ApprovalIcon />, label: t('approval') || 'Approval Center', color: 'hover:text-rose-600 hover:bg-rose-50/50', badge: (pendingApprovals.length + pendingUsers.length) > 0, count: pendingApprovals.length + pendingUsers.length },
+                { id: 'approval', icon: <ApprovalIcon />, label: t('approval') || 'Approval Center', color: 'hover:text-rose-600 hover:bg-rose-50/50', badge: (pendingApprovals.length + pendingUsers.length) > 0 },
                 { id: 'users', icon: <LiveUsersIcon />, label: t('liveUsers') || 'Live Users', color: 'hover:text-emerald-600 hover:bg-emerald-50/50' }
               ].map((btn) => {
                 const isActive = btn.id === 'chat' ? chatState !== 'closed' : activePanel === btn.id;
                 return (
-                  <button key={btn.id} id={`action-${btn.id}`} onClick={() => handleActionClick(btn.id)} title={btn.label} className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all duration-200 relative group shadow-sm ${isActive ? 'bg-[#286086] text-white border-[#286086]' : `bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:shadow ${btn.color}`}`}>
-                    {btn.icon}
-                    {btn.id === 'approval' && btn.badge && <span className="absolute -top-1.5 -right-1.5 w-[18px] h-[18px] rounded-full bg-rose-500 text-[10px] text-white flex items-center justify-center font-bold ring-2 ring-white animate-bounce shadow-sm">{btn.count}</span>}
-                    {btn.id === 'chat' && unreadCount > 0 && <span className="absolute -top-1.5 -right-1.5 w-[18px] h-[18px] rounded-full bg-blue-500 text-[10px] text-white flex items-center justify-center font-bold ring-2 ring-white shadow-sm">{unreadCount}</span>}
+                  <button key={btn.id} id={`action-${btn.id}`} onClick={() => handleActionClick(btn.id)} className={`w-[38px] h-[38px] rounded-xl flex items-center justify-center transition-all duration-200 relative group ${isActive ? 'bg-[#286086] text-white shadow-sm' : `text-slate-500 bg-transparent ${btn.color}`}`}>
+                    <div className={`transition-transform duration-200 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>{btn.icon}</div>
+                    
+                    {/* Tooltips and Badges */}
+                    {btn.id === 'approval' && btn.badge && <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white animate-pulse"></span>}
+                    {btn.id === 'chat' && unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-500 border-2 border-white text-[9px] font-bold text-white flex items-center justify-center animate-bounce shadow-sm">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
+                    
+                    <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 px-2.5 py-1.5 bg-slate-800 text-white text-[11px] font-semibold rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-[99999] flex flex-col items-center pointer-events-none">
+                      {btn.label}
+                      <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-800 rotate-45 rounded-[1px]"></div>
+                    </div>
                   </button>
                 );
               })}
@@ -555,14 +629,20 @@ export default function MainLayout() {
             <div className="hidden md:block w-[1px] h-5 bg-slate-200 mx-1.5"></div>
 
             <div className="relative" ref={profileRef}>
-              <button onClick={() => setProfileOpen(!profileOpen)} className={`flex items-center gap-3 pl-2 pr-4 py-1.5 rounded-xl border transition-all duration-200 shadow-sm ${profileOpen ? 'border-[#286086] bg-[#286086]/5 ring-2 ring-[#286086]/10' : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow hover:bg-slate-50'}`}>
-                <div className="w-[34px] h-[34px] rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 border border-slate-200 flex items-center justify-center text-slate-600 font-extrabold text-xs uppercase shadow-inner">{initialName}</div>
-                <div className="text-left hidden sm:flex flex-col max-w-[130px]">
-                  <span className="text-[13px] font-bold text-slate-700 truncate leading-tight">{displayName}</span>
-                  <span className="text-[10px] font-semibold text-slate-400 truncate mt-0.5 uppercase tracking-wider">{displayRole}</span>
-                </div>
-                <span className={`text-[9px] text-slate-400 transition-transform duration-300 select-none ml-1 ${profileOpen ? 'rotate-180' : ''}`}>▼</span>
-              </button>
+                <button onClick={() => setProfileOpen(!profileOpen)} className={`flex items-center gap-3 pl-1.5 pr-4 py-1.5 rounded-full border transition-all duration-200 ${profileOpen ? 'border-slate-300 bg-slate-50 shadow-sm' : 'border-transparent hover:bg-slate-50 hover:border-slate-200'}`}>
+                  <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-[#286086] to-[#1e4a6d] flex items-center justify-center text-white font-bold text-xs uppercase shadow-sm shrink-0">
+                    {user?.profile_picture ? (
+                      <img src={user.profile_picture} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      initialName
+                    )}
+                  </div>
+                  <div className="text-left hidden sm:flex flex-col max-w-[130px]">
+                    <span className="text-[13px] font-bold text-slate-700 truncate leading-tight group-hover:text-[#286086] transition-colors">{displayName}</span>
+                    <span className="text-[10px] text-slate-400 font-semibold truncate mt-0.5">{displayRole}</span>
+                  </div>
+                  <i className={`fa-solid fa-chevron-down text-[9px] text-slate-400 transition-transform duration-300 ml-1 ${profileOpen ? 'rotate-180' : ''}`}></i>
+                </button>
 
               {profileOpen && (
                 <div className="absolute right-0 mt-2 w-[240px] bg-white rounded-2xl shadow-[0_15px_40px_rgba(0,0,0,0.12)] border border-slate-200 p-2 animate-[slideUpFade_0.2s_ease-out] z-[9999]">
@@ -899,8 +979,7 @@ export default function MainLayout() {
         </form>
       </BaseModal>
 
-      {/* USER GUIDE MODAL */}
-      <UserGuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
+
 
     </div>
   );

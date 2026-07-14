@@ -48,7 +48,7 @@ export default function SSO() {
         // IMPORTANT: Update Zustand store so ProtectedRoute knows we're authenticated!
         loginSave(userData);
 
-        Swal.fire({
+        await Swal.fire({
           icon: 'success',
           title: 'SSO Success',
           text: `Welcome back, ${data.fullName}!`,
@@ -56,8 +56,8 @@ export default function SSO() {
           showConfirmButton: false,
         });
 
-        // Redirect to dashboard
-        navigate('/dashboard');
+        // Redirect to dashboard explicitly to ensure Zustand persist loads from localStorage
+        window.location.href = '/dashboard';
 
       } catch (err) {
         Swal.fire({

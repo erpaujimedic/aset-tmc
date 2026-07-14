@@ -26,7 +26,7 @@ class TemplateUpdate(BaseModel):
     master_component_id: Optional[str] = None
     default_quantity: Optional[int] = None
 
-@router.get("/")
+@router.get("")
 def get_master_components():
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")
@@ -36,7 +36,7 @@ def get_master_components():
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/")
+@router.post("")
 def create_master_component(comp: MasterComponentCreate):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection error")

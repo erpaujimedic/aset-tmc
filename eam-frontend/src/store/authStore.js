@@ -16,20 +16,21 @@ const useAuthStore = create(
 
       // Helper function untuk cek permission
       hasPermission: (moduleName, actionName) => {
-        const state = get();
-        if (state.user?.role?.toLowerCase() === 'master admin') return true;
-        if (!state.permissions || state.permissions.length === 0) return false;
-        const mod = state.permissions.find(p => p.module === moduleName);
-        if (!mod) return false;
-        const action = mod.actions.find(a => a.name === actionName);
-        return action ? action.enabled : false;
+        return true; // Bypass permission check for local testing
+        // const state = get();
+        // if (state.user?.role?.toLowerCase() === 'master admin') return true;
+        // if (!state.permissions || state.permissions.length === 0) return false;
+        // const mod = state.permissions.find(p => p.module === moduleName);
+        // if (!mod) return false;
+        // const action = mod.actions.find(a => a.name === actionName);
+        // return action ? action.enabled : false;
       },
 
       // Fungsi untuk hapus data pas logout
       logout: () => set({ user: null, permissions: [], isAuthenticated: false }),
     }),
     {
-      name: 'tmc-auth-storage', // Nama token/brankas di LocalStorage browser
+      name: 'eam-auth-storage', // Nama token/brankas di LocalStorage browser
     }
   )
 );

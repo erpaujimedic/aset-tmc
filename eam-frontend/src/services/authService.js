@@ -38,3 +38,16 @@ export const resetPassword = async (email) => {
     throw extractError(error, "Failed to send reset link!");
   }
 };
+
+export const changePassword = async (email, oldPassword, newPassword) => {
+  try {
+    const response = await api.post('/auth/change-password', { 
+      email: email,
+      old_password: oldPassword,
+      new_password: newPassword
+    });
+    return response.data;
+  } catch (error) {
+    throw extractError(error, "Password change failed!");
+  }
+};

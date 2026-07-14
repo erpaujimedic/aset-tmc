@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ReactECharts from 'echarts-for-react';
+import * as echarts from 'echarts';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -180,6 +181,7 @@ export default function Dashboard() {
   const regionChartOptions = {
     tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
     legend: { show: false },
+    color: ['#286086', '#EC363A', '#1e293b', '#A78759', '#3b82f6', '#f43f5e'],
     series: [
       {
         name: 'Assets by Region',
@@ -245,7 +247,12 @@ export default function Dashboard() {
   const activeStats = stats || defaultStats;
 
   return (
-    <div className="space-y-6 max-w-[1600px] mx-auto animate-[fadeIn_0.3s_ease-out]">
+    <div className="relative space-y-6 max-w-[1600px] mx-auto animate-[fadeIn_0.3s_ease-out]">
+      {/* TMC Premium Gradient Background Elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+        <div className="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] rounded-full bg-[#286086]/10 blur-[120px]"></div>
+        <div className="absolute bottom-[20%] -right-[10%] w-[40%] h-[40%] rounded-full bg-[#EC363A]/10 blur-[100px]"></div>
+      </div>
       
       {/* UNIFIED STICKY TOP BAR & KPI (Always visible on Overview, Top Bar always visible on Map) */}
       <div className="sticky top-0 z-40 bg-slate-50/95 backdrop-blur-md pt-4 pb-4 mb-6">
