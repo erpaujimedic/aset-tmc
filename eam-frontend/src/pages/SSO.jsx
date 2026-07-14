@@ -40,7 +40,8 @@ export default function SSO() {
           name: data.fullName,
           email: data.email,
           role: data.role,
-          branch: data.branch
+          branch: data.branch,
+          token: data.token
         };
         localStorage.setItem('user', JSON.stringify(userData));
         
