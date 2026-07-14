@@ -402,7 +402,7 @@ export default function MainLayout() {
       )}
 
       {/* 1. SIDEBAR */}
-      <aside className={`fixed md:relative top-0 left-0 h-full bg-gradient-to-b from-white to-slate-100/80 text-slate-700 flex flex-col transition-all duration-300 ease-in-out border-r border-slate-200 z-[1000] md:z-[60] shadow-[4px_0_24px_rgba(0,0,0,0.02)] ${isSidebarOpen ? 'translate-x-0 w-[260px]' : '-translate-x-full md:translate-x-0 w-[260px] md:w-[78px]'}`}>
+      <aside className={`fixed md:relative top-0 left-0 h-full bg-gradient-to-b from-white to-slate-100/80 text-slate-700 flex flex-col transition-all duration-300 ease-in-out border-r border-slate-200 z-[1000] md:z-[110] shadow-[4px_0_24px_rgba(0,0,0,0.02)] ${isSidebarOpen ? 'translate-x-0 w-[260px]' : '-translate-x-full md:translate-x-0 w-[260px] md:w-[78px]'}`}>
         
         {/* 🔥 CLEAN FLOATING TOGGLE BUTTON 🔥 */}
         <button
