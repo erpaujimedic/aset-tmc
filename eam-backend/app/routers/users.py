@@ -112,8 +112,10 @@ def create_user(req: UserCreate):
     branch_val = req.branch[0] if isinstance(req.branch, list) and len(req.branch) > 0 else req.branch
     branch_val = normalize_branch_name(str(branch_val))
     
+    import uuid
     try:
         res = most_supabase.table("users").insert({
+            "id": str(uuid.uuid4()),
             "full_name": req.name,
             "email": req.email,
             "username": req.username,
