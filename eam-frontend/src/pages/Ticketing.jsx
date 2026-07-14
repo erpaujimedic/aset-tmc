@@ -170,7 +170,7 @@ export default function Ticketing() {
     if (!silent) setLoading(true);
     setSyncedTickets(false);
     try {
-      const isAllBranch = Array.isArray(user?.branch) ? user.branch.includes('ALL') : user?.branch === 'ALL';
+      const isAllBranch = Array.isArray(user?.branch) ? (user.branch.includes('ALL') || user.branch.includes('All Branches')) : (user?.branch === 'ALL' || user?.branch === 'All Branches');
       const isAdminSystem = ['Master Admin', 'Admin System'].includes(user?.role);
       const apiBranchParam = (isAdminSystem || isAllBranch) 
         ? null 
@@ -300,7 +300,7 @@ export default function Ticketing() {
   };
 
   const filteredTickets = tickets.filter(tck => {
-    const isAllBranch = Array.isArray(user?.branch) ? user.branch.includes('ALL') : user?.branch === 'ALL';
+    const isAllBranch = Array.isArray(user?.branch) ? (user.branch.includes('ALL') || user.branch.includes('All Branches')) : (user?.branch === 'ALL' || user?.branch === 'All Branches');
     if (!['Master Admin', 'Admin System'].includes(user?.role) && !isAllBranch) {
       if (Array.isArray(user?.branch)) {
         if (!user.branch.includes(tck.branch)) return false;

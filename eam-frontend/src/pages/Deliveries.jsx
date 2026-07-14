@@ -24,7 +24,7 @@ export default function AssetMovements() {
   const branchFetcher = url => api.get(url).then(res => res.data.branches || []);
   
   const { data: mapBranches = [] } = useSWR('/master/setup-data', branchFetcher, { revalidateOnFocus: false });
-  const isAllBranch = Array.isArray(user?.branch) ? user.branch.includes('ALL') : user?.branch === 'ALL';
+  const isAllBranch = Array.isArray(user?.branch) ? (user.branch.includes('ALL') || user.branch.includes('All Branches')) : (user?.branch === 'ALL' || user?.branch === 'All Branches');
   const isAdminSystem = ['Master Admin', 'Admin System'].includes(user?.role);
   const apiBranchParam = (isAdminSystem || isAllBranch) ? null : (Array.isArray(user?.branch) ? user.branch.join(',') : user?.branch);
 
@@ -93,7 +93,7 @@ export default function AssetMovements() {
   
   const assets = allAssets.filter(a => {
     const isStatusValid = a.status === 'Active' || a.status === 'Deployed';
-    const isAllBranch = Array.isArray(user?.branch) ? user.branch.includes('ALL') : user?.branch === 'ALL';
+    const isAllBranch = Array.isArray(user?.branch) ? (user.branch.includes('ALL') || user.branch.includes('All Branches')) : (user?.branch === 'ALL' || user?.branch === 'All Branches');
     const isBranchValid = (['Master Admin', 'Admin System'].includes(user?.role) || isAllBranch) ? true : (Array.isArray(user?.branch) ? user.branch.includes(a.branch) : a.branch === user?.branch);
     return isStatusValid && isBranchValid;
   });

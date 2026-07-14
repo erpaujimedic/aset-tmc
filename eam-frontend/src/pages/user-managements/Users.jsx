@@ -43,7 +43,7 @@ export default function Users() {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const isAllBranch = Array.isArray(user?.branch) ? user.branch.includes('ALL') : user?.branch === 'ALL';
+      const isAllBranch = Array.isArray(user?.branch) ? (user.branch.includes('ALL') || user.branch.includes('All Branches')) : (user?.branch === 'ALL' || user?.branch === 'All Branches');
       const isAdminSystem = ['Master Admin', 'Admin System'].includes(user?.role);
       const apiBranchParam = (isAdminSystem || isAllBranch) 
         ? null 

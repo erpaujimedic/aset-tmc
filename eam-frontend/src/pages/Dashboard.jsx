@@ -56,7 +56,7 @@ export default function Dashboard() {
     alerts: []
   };
   
-  const isAllBranch = Array.isArray(user?.branch) ? user.branch.includes('ALL') : user?.branch === 'ALL';
+  const isAllBranch = Array.isArray(user?.branch) ? (user.branch.includes('ALL') || user.branch.includes('All Branches')) : (user?.branch === 'ALL' || user?.branch === 'All Branches');
   const isAdminSystem = ['Master Admin', 'Admin System'].includes(user?.role);
   const apiBranchParam = (isAdminSystem || isAllBranch) ? '' : (Array.isArray(user?.branch) ? user.branch.join(',') : user?.branch);
 
@@ -116,7 +116,7 @@ export default function Dashboard() {
   }, [mapBranches]);
 
   const { filteredAssets, dynTotalAssets, dynInTransit, dynMaintenance, regionCounts, branchCounts } = React.useMemo(() => {
-    const isAllBranch = Array.isArray(user?.branch) ? user.branch.includes('ALL') : user?.branch === 'ALL';
+    const isAllBranch = Array.isArray(user?.branch) ? (user.branch.includes('ALL') || user.branch.includes('All Branches')) : (user?.branch === 'ALL' || user?.branch === 'All Branches');
     const baseAssets = (['Master Admin', 'Admin System'].includes(user?.role) || isAllBranch)
       ? allAssets 
       : allAssets.filter(a => {

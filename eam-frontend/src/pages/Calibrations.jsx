@@ -74,7 +74,7 @@ export default function Calibrations() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const isAllBranch = Array.isArray(user?.branch) ? user.branch.includes('ALL') : user?.branch === 'ALL';
+      const isAllBranch = Array.isArray(user?.branch) ? (user.branch.includes('ALL') || user.branch.includes('All Branches')) : (user?.branch === 'ALL' || user?.branch === 'All Branches');
       const isAdminSystem = ['Master Admin', 'Admin System'].includes(user?.role);
       const apiBranchParam = (isAdminSystem || isAllBranch) ? null : (Array.isArray(user?.branch) ? user.branch.join(',') : user?.branch);
 
@@ -188,7 +188,7 @@ export default function Calibrations() {
         await api.put(`/calibrations/${form.id}`, form);
         Swal.fire({ icon: 'success', title: 'Success', text: 'Calibration updated.', timer: 1500 });
       } else {
-        const isAllBranch = Array.isArray(user?.branch) ? user.branch.includes('ALL') : user?.branch === 'ALL';
+        const isAllBranch = Array.isArray(user?.branch) ? (user.branch.includes('ALL') || user.branch.includes('All Branches')) : (user?.branch === 'ALL' || user?.branch === 'All Branches');
         const isAdminSystem = ['Master Admin', 'Admin System'].includes(user?.role);
         const apiBranchParam = (isAdminSystem || isAllBranch) ? '' : (Array.isArray(user?.branch) ? user.branch.join(',') : user?.branch);
         const postUrl = apiBranchParam ? `/calibrations?branch=${encodeURIComponent(apiBranchParam)}` : '/calibrations';
@@ -224,7 +224,7 @@ export default function Calibrations() {
 
   // Filter & Pagination Logic
   const filteredCals = calibrations.filter(cal => {
-    const isAllBranch = Array.isArray(user?.branch) ? user.branch.includes('ALL') : user?.branch === 'ALL';
+    const isAllBranch = Array.isArray(user?.branch) ? (user.branch.includes('ALL') || user.branch.includes('All Branches')) : (user?.branch === 'ALL' || user?.branch === 'All Branches');
     if (!['Master Admin', 'Admin System'].includes(user?.role) && !isAllBranch) {
       if (Array.isArray(user?.branch)) {
         if (!user.branch.includes(cal.assets?.branch)) return false;

@@ -60,7 +60,7 @@ export default function Borrowing() {
 
   const { data: mapBranches = [] } = useSWR('/master/setup-data', branchFetcher, { revalidateOnFocus: false });
   const { data: allAssets = [], mutate: mutateAssets } = useSWR(targetBranch ? `/assets?branch=${targetBranch}` : null, fetcher, { revalidateOnFocus: false });
-  const isAllBranch = Array.isArray(user?.branch) ? user.branch.includes('ALL') : user?.branch === 'ALL';
+  const isAllBranch = Array.isArray(user?.branch) ? (user.branch.includes('ALL') || user.branch.includes('All Branches')) : (user?.branch === 'ALL' || user?.branch === 'All Branches');
   const isAdminSystem = ['Master Admin', 'Admin System'].includes(user?.role);
   const apiBranchParam = (isAdminSystem || isAllBranch) ? null : (Array.isArray(user?.branch) ? user.branch.join(',') : user?.branch);
 

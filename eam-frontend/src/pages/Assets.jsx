@@ -159,7 +159,7 @@ export default function Assets() {
   const branchFetcher = url => api.get(url, { headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache', 'Expires': '0' } }).then(res => res.data.branches || []);
   const statsFetcher = url => api.get(url, { headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache', 'Expires': '0' } }).then(res => res.data || {});
 
-  const isAllBranch = Array.isArray(user?.branch) ? user.branch.includes('ALL') : user?.branch === 'ALL';
+  const isAllBranch = Array.isArray(user?.branch) ? (user.branch.includes('ALL') || user.branch.includes('All Branches')) : (user?.branch === 'ALL' || user?.branch === 'All Branches');
   const isAdminSystem = ['Master Admin', 'Admin System'].includes(user?.role);
   const apiBranchParam = (isAdminSystem || isAllBranch) 
     ? (filterBranch === 'All Branches' ? '' : filterBranch) 
@@ -211,7 +211,7 @@ export default function Assets() {
   };
 
   const assets = React.useMemo(() => {
-    const isAllBranch = Array.isArray(user?.branch) ? user.branch.includes('ALL') : user?.branch === 'ALL';
+    const isAllBranch = Array.isArray(user?.branch) ? (user.branch.includes('ALL') || user.branch.includes('All Branches')) : (user?.branch === 'ALL' || user?.branch === 'All Branches');
     const isAdminSystem = ['Master Admin', 'Admin System'].includes(user?.role);
     if (isAdminSystem || isAllBranch) return rawAssets;
     return rawAssets.filter(a => {
