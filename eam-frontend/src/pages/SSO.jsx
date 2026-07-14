@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import Swal from 'sweetalert2';
+import useAuthStore from '../store/authStore';
 
 export default function SSO() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const loginSave = useAuthStore((state) => state.login);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,13 +35,17 @@ export default function SSO() {
         const data = res.data;
         // Save to localStorage just like standard login
         localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify({
+        const userData = {
           id: data.id,
           name: data.fullName,
           email: data.email,
           role: data.role,
           branch: data.branch
-        }));
+        };
+        localStorage.setItem('user', JSON.stringify(userData));
+        
+        // IMPORTANT: Update Zustand store so ProtectedRoute knows we're authenticated!
+        loginSave(userData);
 
         Swal.fire({
           icon: 'success',
