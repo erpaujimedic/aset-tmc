@@ -157,7 +157,7 @@ export default function LoginPage() {
       </div>
 
       {/* Main Login Card */}
-      <div className="w-full max-w-[420px] bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 p-8 sm:p-10 relative z-10 mx-4">
+      <div className="w-full max-w-[420px] bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 p-8 sm:p-10 relative z-10 mx-4 min-h-[580px] flex flex-col">
         
         {/* Header / Branding */}
         <div className="flex flex-col items-center mb-8">
@@ -169,9 +169,8 @@ export default function LoginPage() {
         </div>
 
         {activeView === 'login' && (
-          <form onSubmit={handleLoginSubmit} className="animate-[fadeIn_0.3s_ease-out]">
+          <form onSubmit={handleLoginSubmit} className="animate-[fadeIn_0.3s_ease-out] flex-1 flex flex-col">
             <div className="mb-6">
-              <h2 className="text-lg font-semibold text-slate-800">EAM Administrator</h2>
               <p className="text-sm text-slate-500 mt-1">Please sign-in to your account</p>
             </div>
             
@@ -212,7 +211,7 @@ export default function LoginPage() {
               {loading ? "Signing in..." : "Sign in"}
             </button>
 
-            <div className="mt-5 flex flex-col items-center gap-3 text-xs font-medium">
+            <div className="mt-auto pt-5 flex flex-col items-center gap-3 text-xs font-medium">
               <button type="button" onClick={() => setActiveView('forgot')} className="text-tmc-blue hover:text-[#15385e] transition-colors focus:outline-none">
                 Forgot Password?
               </button>
@@ -224,7 +223,7 @@ export default function LoginPage() {
         )}
 
         {activeView === 'register' && (
-          <form onSubmit={handleRegisterSubmit} className="animate-[fadeIn_0.3s_ease-out]">
+          <form onSubmit={handleRegisterSubmit} className="animate-[fadeIn_0.3s_ease-out] flex-1 flex flex-col">
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-slate-800">Request Access</h2>
               <p className="text-sm text-slate-500 mt-1">Fill in the details below</p>
@@ -290,7 +289,7 @@ export default function LoginPage() {
               {loading ? "Submitting..." : "Submit Request"}
             </button>
 
-            <div className="mt-4 text-center">
+            <div className="mt-auto pt-4 text-center">
               <button type="button" onClick={() => setActiveView('login')} className="text-xs text-slate-500 hover:text-tmc-blue transition-colors focus:outline-none">
                 Back to Sign in
               </button>
@@ -299,7 +298,7 @@ export default function LoginPage() {
         )}
 
         {activeView === 'forgot' && (
-          <form onSubmit={handleForgotSubmit} className="animate-[fadeIn_0.3s_ease-out]">
+          <form onSubmit={handleForgotSubmit} className="animate-[fadeIn_0.3s_ease-out] flex-1 flex flex-col">
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-slate-800">Reset Password</h2>
               <p className="text-sm text-slate-500 mt-1">Enter email to receive reset link</p>
@@ -322,7 +321,7 @@ export default function LoginPage() {
               </button>
             </div>
 
-            <div className="mt-6 text-center">
+            <div className="mt-auto pt-6 text-center">
               <button type="button" onClick={() => setActiveView('login')} className="text-xs text-slate-500 hover:text-tmc-blue transition-colors focus:outline-none">
                 Back to Sign in
               </button>
