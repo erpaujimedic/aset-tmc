@@ -6,6 +6,7 @@ import useAuthStore from '../../store/authStore';
 import useI18nStore from '../../store/i18nStore';
 import useChatStore from '../../store/chatStore';
 import BaseModal from '../ui/BaseModal';
+import ForceProfileModal from '../user-managements/ForceProfileModal';
 
 
 // 🎨 PREMIUM UNIFIED SVG ICONS
@@ -50,6 +51,7 @@ export default function MainLayout() {
 
   // Change password state
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ old_password: '', new_password: '', confirm_password: '' });
 
   const handleChangePassword = async (e) => {
@@ -654,6 +656,7 @@ export default function MainLayout() {
                     <button onClick={() => setLang('id')} className={`flex-1 py-1.5 text-[10px] font-extrabold rounded-lg transition-all ${lang === 'id' ? 'bg-white text-[#30528A] shadow-sm' : 'text-slate-400 hover:text-slate-800'}`}>🇮🇩 ID</button>
                     <button onClick={() => setLang('en')} className={`flex-1 py-1.5 text-[10px] font-extrabold rounded-lg transition-all ${lang === 'en' ? 'bg-white text-[#30528A] shadow-sm' : 'text-slate-400 hover:text-slate-800'}`}>🇺🇸 EN</button>
                   </div>
+                  <button onClick={() => { setProfileOpen(false); setIsProfileModalOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 rounded-xl transition-all"><i className="fa-solid fa-camera w-4 text-center"></i> Ubah Foto Profil</button>
                   <button onClick={() => { setProfileOpen(false); setIsChangePasswordOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 rounded-xl transition-all"><KeyIcon /> {t('changePassword') || 'Change Password'}</button>
                   <button onClick={() => { setProfileOpen(false); Swal.fire({ icon: 'info', title: 'System Cache', text: 'Cache synchronized successfully.', confirmButtonColor: '#30528A', customClass: { popup: 'rounded-[24px] z-[99999]' } }); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 rounded-xl transition-all"><span className="text-sm text-slate-400">↻</span> {t('clearCache') || 'Clear System Cache'}</button>
                   <button onClick={handleLogout} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-all mt-0.5"><LogoutIcon /> {t('logout') || 'Sign Out'}</button>
@@ -979,7 +982,10 @@ export default function MainLayout() {
         </form>
       </BaseModal>
 
-
+      {/* CHANGE PROFILE PICTURE MODAL */}
+      {isProfileModalOpen && (
+        <ForceProfileModal isManual={true} onClose={() => setIsProfileModalOpen(false)} />
+      )}
 
     </div>
   );
