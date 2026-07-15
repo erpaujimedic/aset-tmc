@@ -93,7 +93,7 @@ class BAPayload(BaseModel):
 @router.post("/export-ba")
 async def export_ba(payload: BAPayload):
     import os
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     doc = docx.Document(os.path.join(base_dir, "templates", "ba_barcodeassets.docx"))
     
     target_row = None
